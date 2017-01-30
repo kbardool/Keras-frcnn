@@ -1,5 +1,13 @@
+# -*- coding: utf-8 -*-
+'''ResNet50 model for Keras.
+# Reference:
+- [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385)
+Adapted from code contributed by BigMoyan.
+'''
 from __future__ import print_function
 from __future__ import absolute_import
+
+import warnings
 
 from keras.layers import merge, Input
 from keras.layers import Dense, Activation, Flatten
@@ -7,6 +15,9 @@ from keras.layers import Convolution2D, MaxPooling2D, ZeroPadding2D, AveragePool
 from keras.layers import BatchNormalization
 from keras.models import Model
 from keras import backend as K
+from keras.utils.layer_utils import convert_all_kernels_in_model
+from keras.utils.data_utils import get_file
+from RoiPooling import RoiPooling
 from RoiPoolingConv import RoiPoolingConv
 import numpy as np
 import pdb
@@ -14,8 +25,13 @@ import h5py
 
 bn_mode = 2
 
+
 def load_weights_from_hdf5_group_by_name(model, hdf5_filepath):
     f = h5py.File(hdf5_filepath)
+
+    if 'model_weights' in f:
+        f = f['model_weights']
+
     ''' Name-based weight loading
     (instead of topological weight loading).
     Layers that have no matching name are skipped.
@@ -48,7 +64,8 @@ def load_weights_from_hdf5_group_by_name(model, hdf5_filepath):
             g = f[name]
             weight_names = [n.decode('utf8') for n in g.attrs['weight_names']]
             weight_values = [g[weight_name] for weight_name in weight_names]
-
+            #print('loading layer {}'.format(name))
+            found_match = False
             for layer in index.get(name, []):
                 symbolic_weights = layer.weights
                 if len(weight_values) != len(symbolic_weights):
@@ -61,12 +78,14 @@ def load_weights_from_hdf5_group_by_name(model, hdf5_filepath):
                                     ' element(s).')
                 else:
                     num_valid_layers += 1
+                    found_match = True
                 # set values
                 for i in range(len(weight_values)):
-                    #print('setting val for layer {}'.format(name))
                     weight_value_tuples.append(
                         (symbolic_weights[i], weight_values[i]))
-        print('Loaded {} layers by name'.format(num_valid_layers))
+            #if not found_match:
+            #    print('Failed to load {}'.format(name))
+        #print('Loaded {} layers by name'.format(num_valid_layers))
         K.batch_set_value(weight_value_tuples)
 
 
@@ -80,12 +99,10 @@ def identity_block(input_tensor, kernel_size, filters, stage, block):
             block: 'a','b'..., current block label, used for generating layer names
     '''
     nb_filter1, nb_filter2, nb_filter3 = filters
-
     if K.image_dim_ordering() == 'tf':
         bn_axis = 3
     else:
         bn_axis = 1
-    
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
@@ -106,7 +123,7 @@ def identity_block(input_tensor, kernel_size, filters, stage, block):
 
 
 def identity_block_td(input_tensor, kernel_size, filters, stage, block):
-    '''The identity_block_td is the block that has no conv layer at shortcut
+    '''The identity_block is the block that has no conv layer at shortcut
     # Arguments
             input_tensor: input tensor
             kernel_size: defualt 3, the kernel size of middle conv layer at main path
@@ -115,7 +132,6 @@ def identity_block_td(input_tensor, kernel_size, filters, stage, block):
             block: 'a','b'..., current block label, used for generating layer names
     '''
     nb_filter1, nb_filter2, nb_filter3 = filters
-
     if K.image_dim_ordering() == 'tf':
         bn_axis = 3
     else:
@@ -125,17 +141,17 @@ def identity_block_td(input_tensor, kernel_size, filters, stage, block):
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
     x = TimeDistributed(Convolution2D(nb_filter1, 1, 1), name=conv_name_base + '2a')(input_tensor)
-    x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2a')(x)
+    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2a')(x)
 
     x = Activation('relu')(x)
 
     x = TimeDistributed(Convolution2D(nb_filter2, kernel_size, kernel_size, border_mode='same'), name=conv_name_base + '2b')(x)
-    x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2b')(x)
+    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2b')(x)
 
     x = Activation('relu')(x)
 
     x = TimeDistributed(Convolution2D(nb_filter3, 1, 1), name=conv_name_base + '2c')(x)
-    x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2c')(x)
+    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2c')(x)
 
     x = merge([x, input_tensor], mode='sum')
     x = Activation('relu')(x)
@@ -180,7 +196,7 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2))
     return x
 
 def conv_block_td(input_tensor, kernel_size, filters, stage, block, strides=(2, 2)):
-    '''conv_block_td is the block that has a conv layer at shortcut
+    '''conv_block is the block that has a conv layer at shortcut
     # Arguments
             input_tensor: input tensor
             kernel_size: defualt 3, the kernel size of middle conv layer at main path
@@ -200,21 +216,20 @@ def conv_block_td(input_tensor, kernel_size, filters, stage, block, strides=(2, 
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
     x = TimeDistributed(Convolution2D(nb_filter1, 1, 1, subsample=strides), name=conv_name_base + '2a')(input_tensor)
-    x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2a')(x)
+    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2a')(x)
 
     x = Activation('relu')(x)
 
     x = TimeDistributed(Convolution2D(nb_filter2, kernel_size, kernel_size, border_mode='same'), name=conv_name_base + '2b')(x)
-    x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2b')(x)
+    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2b')(x)
 
     x = Activation('relu')(x)
 
     x = TimeDistributed(Convolution2D(nb_filter3, 1, 1), name=conv_name_base + '2c')(x)
-    x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2c')(x)
-
+    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2c')(x)
 
     shortcut = TimeDistributed(Convolution2D(nb_filter3, 1, 1, subsample=strides), name=conv_name_base + '1')(input_tensor)
-    shortcut = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '1')(shortcut)
+    #shortcut = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '1')(shortcut)
 
     x = merge([x, shortcut], mode='sum')
     x = Activation('relu')(x)
@@ -247,6 +262,8 @@ def resnet_base(input_tensor=None):
     x = Activation('relu')(x)
     x = MaxPooling2D((3, 3), strides=(2, 2))(x)
 
+    #(input_length - filter_size + stride) // stride
+
     x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1))
     x = identity_block(x, 3, [64, 64, 256], stage=2, block='b')
     x = identity_block(x, 3, [64, 64, 256], stage=2, block='c')
@@ -274,13 +291,14 @@ def classifier_layers(x):
 
     return x
 
-def rpn(base_layers):
+def rpn(base_layers,num_anchors):
 
-    x = Convolution2D(512, 3, 3, border_mode = 'same', activation='relu', init='normal')(base_layers)
+    x = Convolution2D(512, 3, 3, border_mode = 'same', activation='relu', init='normal',name='rpn_conv1')(base_layers)
 
-    num_out_for_class = 9
-    x_class = Convolution2D(num_out_for_class, 1, 1, activation='sigmoid', init='normal')(x)
-    return (x_class)
+    x_class = Convolution2D(num_anchors, 1, 1, activation='sigmoid', init='normal',name='rpn_out_class')(x)
+    x_regr = Convolution2D(num_anchors * 4, 1, 1, activation='linear', init='normal',name='rpn_out_regr')(x)
+
+    return [x_class,x_regr]
 
 def classifier(base_layers,input_rois,num_rois,nb_classes = 21):
 
