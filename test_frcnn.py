@@ -79,8 +79,8 @@ classifier = resnet.classifier(feature_map_input,roi_input,num_rois,nb_classes=l
 model_rpn = Model(img_input,rpn + [shared_layers])
 model_classifier = Model([feature_map_input,roi_input],classifier)
 
-model_rpn.load_weights('model_frcnn.regr.no_bn.0.hdf5', by_name=True)
-model_classifier.load_weights('model_frcnn.regr.no_bn.0.hdf5', by_name=True)
+model_rpn.load_weights('model_frcnn.hdf5', by_name=True)
+model_classifier.load_weights('model_frcnn.hdf5', by_name=True)
 
 
 model_rpn.compile(optimizer='sgd',loss='mse')
@@ -105,7 +105,7 @@ for idx,img_name in enumerate(sorted(os.listdir(img_path))):
 	# get the feature maps and output from the RPN
 	[Y1,Y2,F] = model_rpn.predict(X)
 
-	R = roi_helpers.rpn_to_roi(Y1,Y2)
+	R = roi_helpers.rpn_to_roi(Y1,Y2,C)
 
 	# convert from (x1,y1,x2,y2) to (x,y,w,h)
 	R[:,2] = R[:,2] - R[:,0]

@@ -1,5 +1,5 @@
 # keras-frcnn
-Prototype keras implementation of Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks
+Keras implementation of Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks
 Example output from the current code:
 
 ![ex1](http://i.imgur.com/UtGXhtd.jpg)

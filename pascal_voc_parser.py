@@ -1,9 +1,8 @@
 import os
 import cv2
 import xml.etree.ElementTree as ET
-import pdb
 
-def get_data():
+def get_data(input_path):
 	all_imgs = []
 
 	classes_count = {}
@@ -12,8 +11,7 @@ def get_data():
 
 	visualise = False
 
-	data_paths = ['/data/reference/pascal_voc/VOC2007',
-	              '/data/reference/pascal_voc/VOC2012']
+	data_paths = [os.path.join(input_path,'VOC2007'),os.path.join(input_path,'VOC2012')]
 
 	print('Parsing annotation files')
 
@@ -42,8 +40,6 @@ def get_data():
 		for annot in annots:
 			try:
 				idx += 1
-				#if idx > 1000:
-				#	break
 
 				et = ET.parse(annot)
 				element = et.getroot()
@@ -54,11 +50,8 @@ def get_data():
 				element_height = int(element.find('size').find('height').text)
 
 				if len(element_objs) > 0:
-					annotation_data = {}
-					annotation_data['filepath'] = os.path.join(imgs_path, element_filename)
-					annotation_data['width'] = element_width
-					annotation_data['height'] = element_height
-					annotation_data['bboxes'] = []
+					annotation_data = {'filepath': os.path.join(imgs_path, element_filename), 'width': element_width,
+									   'height': element_height, 'bboxes': []}
 					if element_filename in trainval_files:
 						annotation_data['imageset'] = 'trainval'
 					elif element_filename in test_files:

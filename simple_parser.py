@@ -1,10 +1,7 @@
-import os
 import cv2
-import pdb
 import numpy as np
 
-def get_data():
-	input_path = '/data/yann/testing/cons/all_labels.txt'
+def get_data(input_path):
 	all_imgs = {}
 
 	classes_count = {}
@@ -20,7 +17,6 @@ def get_data():
 		for line in f:
 			line_split = line.strip().split(',')
 			(filename,x1,y1,x2,y2,class_name) = line_split
-			filename = filename.replace('SHARK','SHA').replace('OTHER','OTH')
 
 			if class_name not in classes_count:
 				classes_count[class_name] = 1

@@ -76,8 +76,9 @@ def non_max_suppression_fast(boxes, probs, overlapThresh = 0.95):
 	probs = probs[pick]
 	return boxes, probs
 
-def rpn_to_roi(rpn_layer, regr_layer, downscale=16, anchor_sizes=[128, 256, 512],anchor_ratios=[[1,1],[1,2],[2,1]]):
-	
+def rpn_to_roi(rpn_layer, regr_layer, C):
+	anchor_sizes = C.anchor_sizes
+	anchor_ratios = C.anchor_ratios
 	assert len(anchor_sizes) * len(anchor_ratios) == rpn_layer.shape[1]
 	assert len(anchor_sizes) * len(anchor_ratios) * 4 == regr_layer.shape[1]
 
