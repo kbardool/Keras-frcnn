@@ -23,14 +23,14 @@ import numpy as np
 import pdb
 import h5py
 
-bn_mode = 2
+bn_mode = 0
 
 
 def load_weights_from_hdf5_group_by_name(model, hdf5_filepath):
     f = h5py.File(hdf5_filepath)
 
     if 'model_weights' in f:
-        f = f['model_weights']
+       f = f['model_weights']
 
     ''' Name-based weight loading
     (instead of topological weight loading).
