@@ -3,7 +3,7 @@ import pprint
 import sys
 import json
 import config
-import simple_parser as parser
+import pascal_voc_parser as parser
 
 sys.setrecursionlimit(40000)
 
@@ -68,13 +68,15 @@ model = Model([img_input,roi_input],rpn + [classifier])
 
 try:
 	if K.image_dim_ordering() == 'th'		:
-		hdf5_filepath = './resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
+		hdf5_filepath = 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
 	else:
-		hdf5_filepath = './resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
-except:
-	pass
+		hdf5_filepath = 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
 
-model.load_weights(model_filepath, by_name=True)
+		model.load_weights(hdf5_filepath, by_name=True)
+except:
+	print('Could not load pretrained model weights')
+
+
 
 optimizer = Adam(1e-5)
 
@@ -99,7 +101,7 @@ for i in range(1,len(train_imgs) * nb_epochs + 1):
 		for j in range(num_samples_for_val):
 
 			(X1,Y1_class,Y1_regr,X2,Y2) = data_gen_val.next()
-			loss_total,loss_rpn_class,loss_rpn_regr,loss_class = model.train_on_batch([X1,X2],[Y1_class,Y1_regr,Y2])
+			loss_total,loss_rpn_class,loss_rpn_regr,loss_class = model.test_on_batch([X1,X2],[Y1_class,Y1_regr,Y2])
 			val_class_losses += loss_class
 			val_rpn_loss += loss_rpn_class + loss_rpn_regr
 
