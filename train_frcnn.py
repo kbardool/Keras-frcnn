@@ -64,7 +64,6 @@ classifier = resnet.classifier(shared_layers,roi_input,C.num_rois,nb_classes=len
 
 # define the full model
 model = Model([img_input,roi_input],rpn + [classifier])
-#model.summary()
 
 try:
 	if K.image_dim_ordering() == 'th'		:
@@ -72,7 +71,7 @@ try:
 	else:
 		hdf5_filepath = 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
 
-		model.load_weights(hdf5_filepath, by_name=True)
+	model.load_weights(hdf5_filepath, by_name=True)
 except:
 	print('Could not load pretrained model weights')
 
@@ -91,7 +90,7 @@ avg_loss_class = []
 
 for i in range(1,len(train_imgs) * nb_epochs + 1):
 
-	if i%3000 == 0:
+	if i%2000 == 0:
 
 		# run validation
 		val_rpn_loss = 0
