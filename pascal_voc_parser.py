@@ -2,16 +2,18 @@ import os
 import cv2
 import xml.etree.ElementTree as ET
 import pdb
-def get_data(data_path):
+
+def get_data():
 	all_imgs = []
 
-	instances_per_class = {}
+	classes_count = {}
 
 	class_mapping = {}
 
 	visualise = False
 
-	data_paths = [os.path.join(data_path,s) for s in ['VOC2007', 'VOC2012']]
+	data_paths = ['/data/reference/pascal_voc/VOC2007',
+	              '/data/reference/pascal_voc/VOC2012']
 
 	print('Parsing annotation files')
 
@@ -33,13 +35,15 @@ def get_data(data_path):
 					test_files.append(line.strip() + '.jpg')
 		except Exception as e:
 			print(e)
-
+		
 
 		annots = [os.path.join(annot_path, s) for s in os.listdir(annot_path)]
 		idx = 0
 		for annot in annots:
 			try:
 				idx += 1
+				#if idx > 1000:
+				#	break
 
 				et = ET.parse(annot)
 				element = et.getroot()
@@ -62,13 +66,12 @@ def get_data(data_path):
 					else:
 						annotation_data['imageset'] = 'test'
 
-
 				for element_obj in element_objs:
 					class_name = element_obj.find('name').text
-					if class_name not in instances_per_class:
-						instances_per_class[class_name] = 1
+					if class_name not in classes_count:
+						classes_count[class_name] = 1
 					else:
-						instances_per_class[class_name] += 1
+						classes_count[class_name] += 1
 
 					if class_name not in class_mapping:
 						class_mapping[class_name] = len(class_mapping)
@@ -94,4 +97,4 @@ def get_data(data_path):
 			except Exception as e:
 				print(e)
 				continue
-	return all_imgs,instances_per_class,class_mapping
+	return all_imgs,classes_count,class_mapping
