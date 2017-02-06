@@ -295,9 +295,9 @@ def classifier(base_layers,input_rois,num_rois,nb_classes = 21):
     pooling_regions = 7
 
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers,input_rois])
-    out_class  = classifier_layers(out_roi_pool)
-    out_class  = TimeDistributed(Flatten(),name='td_flatten')(out_class)
-    out_class  = TimeDistributed(Dense(nb_classes,activation='softmax'), name='dense_class_{}'.format(nb_classes))(out_class)
-    out_regr  = TimeDistributed(Dense(4,activation='linear'), name='dense_regr')(out_class)
+    out = classifier_layers(out_roi_pool)
+    out = TimeDistributed(Flatten(),name='td_flatten')(out)
+    out_class = TimeDistributed(Dense(nb_classes, activation='softmax'), name='dense_class_{}'.format(nb_classes))(out)
+    out_regr = TimeDistributed(Dense(4, activation='linear'), name='dense_regr')(out)
 
     return [out_class,out_regr]
