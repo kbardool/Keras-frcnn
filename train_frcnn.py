@@ -11,12 +11,8 @@ C = config.Config()
 C.num_rois = 2
 
 
-#import pascal_voc_parser as parser
-#all_imgs,classes_count,class_mapping = parser.get_data()
-
 import parser
-all_imgs,classes_count,class_mapping = parser.get_data('VOCdevkit')
-#all_imgs,classes_count,class_mapping = parser.get_data(sys.argv[1])
+all_imgs,classes_count,class_mapping = parser.get_data(sys.argv[1])
 
 
 with open('classes.json', 'w') as class_data_json:
