@@ -10,17 +10,14 @@ sys.setrecursionlimit(40000)
 C = config.Config()
 C.num_rois = 2
 
-<<<<<<< HEAD
+
 #import pascal_voc_parser as parser
 #all_imgs,classes_count,class_mapping = parser.get_data()
 
 import parser
 all_imgs,classes_count,class_mapping = parser.get_data('VOCdevkit')
+#all_imgs,classes_count,class_mapping = parser.get_data(sys.argv[1])
 
-=======
-
-all_imgs,classes_count,class_mapping = parser.get_data(sys.argv[1])
->>>>>>> refs/remotes/origin/master
 
 with open('classes.json', 'w') as class_data_json:
     json.dump(class_mapping, class_data_json)
@@ -76,31 +73,23 @@ model = Model([img_input,roi_input],rpn + [classifier])
 
 try:
 	if K.image_dim_ordering() == 'th'		:
-<<<<<<< HEAD
+
 		hdf5_filepath = 'resnet50_weights_th_dim_ordering_th_kernels.h5'
-=======
-		hdf5_filepath = 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
->>>>>>> refs/remotes/origin/master
+
 	else:
 		hdf5_filepath = 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
-
+	print 'loading weights from ', hdf5_filepath
 	model.load_weights(hdf5_filepath, by_name=True)
 except:
 	print('Could not load pretrained model weights')
 
 
 
-<<<<<<< HEAD
-#hdf5_filepath = 'model_frcnn.regr.no_bn.hdf5hdf5'
-print 'loading weights from ', hdf5_filepath
-resnet.load_weights_from_hdf5_group_by_name(model,hdf5_filepath)
-#model.load_weights('./model_frcnn.regr.2.hdf5')
 optimizer = Adam(lr = 1e-5)
-=======
-optimizer = Adam(1e-5)
->>>>>>> refs/remotes/origin/master
+
 
 model.compile(optimizer=optimizer, loss=[losses.rpn_loss, losses.robust_l1_loss, 'categorical_crossentropy'])
+model.summary()
 
 nb_epoch = 1000
 
@@ -112,7 +101,7 @@ avg_loss_class = []
 print 'starting training'
 
 for i in range(1,len(train_imgs) * nb_epochs + 1):
-
+	
 	if i%2000 == 0:
 
 		# run validation
@@ -122,7 +111,7 @@ for i in range(1,len(train_imgs) * nb_epochs + 1):
 		num_samples_for_val = 1000
 		for j in range(num_samples_for_val):
 
-			(X1,Y1_class,Y1_regr,X2,Y2) = data_gen_val.next()
+			[X1,X2], [Y1_class,Y1_regr,Y2] = data_gen_val.next()
 			loss_total,loss_rpn_class,loss_rpn_regr,loss_class = model.test_on_batch([X1,X2],[Y1_class,Y1_regr,Y2])
 			val_class_losses += loss_class
 			val_rpn_loss += loss_rpn_class + loss_rpn_regr
@@ -135,14 +124,13 @@ for i in range(1,len(train_imgs) * nb_epochs + 1):
 
 		if total_loss < best_val_loss:
 			best_val_loss = total_loss
-<<<<<<< HEAD
-			model.save_weights('./model_frcnn.regr.no_bn.2.hdf5.hdf5')
-=======
+
 			model.save_weights('model_frcnn.hdf5')
->>>>>>> refs/remotes/origin/master
 
-	(X1,Y1_class,Y1_regr,X2,Y2) = data_gen_train.next()
 
+	[X1,X2], [Y1_class,Y1_regr,Y2] = data_gen_train.next()
+	print('i ', str(i))
+	print(X1.shape, X2.shape)
 	loss_total,loss_rpn_class,loss_rpn_regr,loss_class = model.train_on_batch([X1,X2],[Y1_class,Y1_regr,Y2])
 
 	avg_loss_rpn.append(loss_rpn_class + loss_rpn_regr)

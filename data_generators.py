@@ -123,9 +123,9 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 			assert rows == height
 
 			# get image dimensions for resizing
-			(resized_width, resized_height) = get_new_img_size(width, height)
+			(resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
 
-			# resize the image so that smalles side is length = 600px
+			# resize the image so that smallest side is length = C.im_size
 			img = cv2.resize(img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
 
 			# calculate the output map size based on the network architecture
@@ -322,7 +322,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 			img = np.expand_dims(img, axis=0).astype('float32')
 			img -= 127.5
 
-			yield (img, Y_rpn_cls, Y_rpn_regr, Y_rois, Y_class_num)
+			yield [img, Y_rois], [Y_rpn_cls, Y_rpn_regr,  Y_class_num]
 
 		# except Exception as e:
 		#	print(e)
