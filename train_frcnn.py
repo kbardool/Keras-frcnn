@@ -11,7 +11,9 @@ C = config.Config()
 C.num_rois = 8
 
 
+import parser
 all_imgs,classes_count,class_mapping = parser.get_data(sys.argv[1])
+
 
 with open('classes.json', 'w') as class_data_json:
     json.dump(class_mapping, class_data_json)
@@ -69,10 +71,12 @@ model = Model([img_input, roi_input], rpn + classifier)
 
 try:
 	if K.image_dim_ordering() == 'th'		:
-		hdf5_filepath = 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
+
+		hdf5_filepath = 'resnet50_weights_th_dim_ordering_th_kernels.h5'
+
 	else:
 		hdf5_filepath = 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
-
+	print 'loading weights from ', hdf5_filepath
 	model.load_weights(hdf5_filepath, by_name=True)
 except:
 	print('Could not load pretrained model weights')
@@ -82,13 +86,14 @@ except:
 optimizer = Adam(1e-5)
 model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls, losses.rpn_loss_regr, losses.class_loss_cls, losses.class_loss_regr])
 
-model.summary()
 nb_epoch = 1000
 
 best_val_loss = 1e9
 nb_epochs = 50
 avg_loss_rpn = []
 avg_loss_class = []
+
 model_checkpoint = ModelCheckpoint('model_frcnn.hdf5',monitor='val_loss',verbose=1,save_best_only=True,save_weights_only=True)
 model.fit_generator(data_gen_train,samples_per_epoch=2000,nb_epoch=100,callbacks=[model_checkpoint],
 					validation_data=data_gen_val,nb_val_samples=1000)
+

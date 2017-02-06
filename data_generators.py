@@ -123,7 +123,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 			assert rows == height
 
 			# get image dimensions for resizing
-			(resized_width, resized_height) = get_new_img_size(width, height)
+			(resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
 
 			# resize the image so that smalles side is length = 600px
 			X_img = cv2.resize(X_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
