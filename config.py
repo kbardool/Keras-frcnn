@@ -16,7 +16,7 @@ class Config:
 		
 
 		# size to resize the smallest size of the image
-		self.im_size = 400#600
+		self.im_size = 600
 
 		# number of ROIs at once
 		self.num_rois = 2
