@@ -221,8 +221,7 @@ def classifier_layers(x, trainable=False):
 
 def rpn(base_layers,num_anchors):
 
-    #x = Convolution2D(512, 3, 3, border_mode = 'same', activation='relu', init='normal',name='rpn_conv1')(base_layers)
-    x = Convolution2D(256, 3, 3, border_mode = 'same', activation='relu', init='normal',name='rpn_conv1')(base_layers)
+    x = Convolution2D(512, 3, 3, border_mode = 'same', activation='relu', init='normal',name='rpn_conv1')(base_layers)
 
     x_class = Convolution2D(num_anchors, 1, 1, activation='sigmoid', init='normal',name='rpn_out_class')(x)
     x_regr = Convolution2D(num_anchors * 4, 1, 1, activation='linear', init='normal',name='rpn_out_regr')(x)
