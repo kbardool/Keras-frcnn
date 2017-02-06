@@ -9,6 +9,7 @@ import json
 import numpy as np
 import sys
 import config
+
 sys.setrecursionlimit(40000)
 C = config.Config()
 C.use_horizontal_flips = False
@@ -82,9 +83,8 @@ model_classifier = Model([feature_map_input,roi_input],classifier)
 model_rpn.load_weights('model_frcnn.hdf5', by_name=True)
 model_classifier.load_weights('model_frcnn.hdf5', by_name=True)
 
-
 model_rpn.compile(optimizer='sgd',loss='mse')
-model_classifier.compile(optimizer='sgd',loss='categorical_crossentropy')
+model_classifier.compile(optimizer='sgd',loss='mse')
 
 all_imgs = []
 
@@ -128,14 +128,14 @@ for idx,img_name in enumerate(sorted(os.listdir(img_path))):
 			ROIs_padded[0,curr_shape[1]:,:] = ROIs[0,0,:]
 			ROIs = ROIs_padded
 
-		P = model_classifier.predict([F,ROIs])
+		[P_cls,P_regr] = model_classifier.predict([F,ROIs])
 
-		for ii in range(P.shape[1]):
+		for ii in range(P_cls.shape[1]):
 
-			if np.max(P[0,ii,:]) < 0.8 or np.argmax(P[0,ii,:]) == (P.shape[2] - 1):
+			if np.max(P_cls[0,ii,:]) < 0.8 or np.argmax(P_cls[0,ii,:]) == (P_cls.shape[2] - 1):
 				continue
 
-			cls_name = class_mapping[np.argmax(P[0,ii,:])]
+			cls_name = class_mapping[np.argmax(P_cls[0,ii,:])]
 
 			if cls_name not in bboxes:
 				bboxes[cls_name] = []
@@ -143,7 +143,7 @@ for idx,img_name in enumerate(sorted(os.listdir(img_path))):
 			(x,y,w,h) = ROIs[0,ii,:]
 
 			bboxes[cls_name].append([16*x,16*y,16*(x+w),16*(y+h)])
-			probs[cls_name].append(np.max(P[0,ii,:]))
+			probs[cls_name].append(np.max(P_cls[0,ii,:]))
 
 	all_dets = {}
 

@@ -114,10 +114,10 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 				continue
 
 			# read in image, and optionally add augmentation
-			img_data, img = data_augment.augment(img_data, C)
+			img_data, X_img = data_augment.augment(img_data, C)
 
 			(width, height) = (img_data['width'], img_data['height'])
-			(rows, cols, _) = img.shape
+			(rows, cols, _) = X_img.shape
 
 			assert cols == width
 			assert rows == height
@@ -125,8 +125,8 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 			# get image dimensions for resizing
 			(resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
 
-			# resize the image so that smallest side is length = C.im_size
-			img = cv2.resize(img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
+			# resize the image so that smalles side is length = 600px
+			X_img = cv2.resize(X_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
 
 			# calculate the output map size based on the network architecture
 			(output_width, output_height) = get_img_output_length(resized_width, resized_height)
@@ -292,10 +292,10 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 			val_locs = random.sample(range(neg_samples.shape[0]), C.num_rois - valid_cls_samples.shape[0])
 			valid_neg_samples = neg_samples[val_locs, :]
 
-			Y_rois = np.expand_dims(np.concatenate([valid_pos_samples, valid_neg_samples]), axis=0)
-			Y_class_num = np.zeros((Y_rois.shape[1], len(class_mapping) + 1))
+			X_rois = np.expand_dims(np.concatenate([valid_pos_samples, valid_neg_samples]), axis=0)
+			Y_class_num = np.zeros((X_rois.shape[1], len(class_mapping) + 1))
 
-			for i in range(Y_rois.shape[1]):
+			for i in range(X_rois.shape[1]):
 				if i < valid_cls_samples.shape[0]:
 					class_num = class_mapping[valid_cls_samples[i]]
 					Y_class_num[i, class_num] = 1
@@ -316,14 +316,14 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 
 			Y_rpn_cls = np.concatenate([Y_is_box_valid, Y_rpn_overlap], axis=1)
 			Y_rpn_regr = np.concatenate([np.repeat(Y_rpn_overlap, 4, axis=1), Y_rpn_regr], axis=1)
-			# if not np.sum(np.where(Y_rpn_regr[0,36:,:,:]!= 0)) == np.sum(np.where(Y_rpn_regr[0,:36,:,:]!= 0)):
-			#	pdb.set_trace()
-			img = np.transpose(img, (2, 0, 1))
-			img = np.expand_dims(img, axis=0).astype('float32')
-			img -= 127.5
+			Y_class_regr = np.zeros((1,C.num_rois,4))
 
-			yield [img, Y_rois], [Y_rpn_cls, Y_rpn_regr,  Y_class_num]
+			X_img = np.transpose(X_img, (2, 0, 1))
+			X_img = np.expand_dims(X_img, axis=0).astype('float32')
 
-		# except Exception as e:
-		#	print(e)
-		#	continue
+			# Zero-center by mean pixel
+			X_img[:, 0, :, :] -= 103.939
+			X_img[:, 1, :, :] -= 116.779
+			X_img[:, 2, :, :] -= 123.68
+
+			yield [X_img, X_rois], [Y_rpn_cls, Y_rpn_regr, Y_class_num, Y_class_regr]

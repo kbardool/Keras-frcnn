@@ -6,18 +6,19 @@ Adapted from code contributed by BigMoyan.
 '''
 from __future__ import print_function
 from __future__ import absolute_import
+
 from keras.layers import merge, Input
 from keras.layers import Dense, Activation, Flatten
 from keras.layers import Convolution2D, MaxPooling2D, ZeroPadding2D, AveragePooling2D, TimeDistributed
-from keras.layers import BatchNormalization
 from keras import backend as K
-
 from RoiPoolingConv import RoiPoolingConv
-
+from FixedBatchNormalization import FixedBatchNormalization
+import h5py
 
 bn_mode = 0
 
 def identity_block(input_tensor, kernel_size, filters, stage, block, trainable=True):
+
     '''The identity_block is the block that has no conv layer at shortcut
     # Arguments
             input_tensor: input tensor
@@ -35,15 +36,15 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, trainable=T
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
     x = Convolution2D(nb_filter1, 1, 1, name=conv_name_base + '2a', trainable=trainable)(input_tensor)
-    x = BatchNormalization(axis=bn_axis, mode=bn_mode, name=bn_name_base + '2a')(x)
+    x = FixedBatchNormalization(trainable=False,axis=bn_axis, name=bn_name_base + '2a')(x)
     x = Activation('relu')(x)
 
     x = Convolution2D(nb_filter2, kernel_size, kernel_size, border_mode='same', name=conv_name_base + '2b', trainable=trainable)(x)
-    x = BatchNormalization(axis=bn_axis, mode=bn_mode, name=bn_name_base + '2b')(x)
+    x = FixedBatchNormalization(trainable=False,axis=bn_axis, name=bn_name_base + '2b')(x)
     x = Activation('relu')(x)
 
     x = Convolution2D(nb_filter3, 1, 1, name=conv_name_base + '2c', trainable=trainable)(x)
-    x = BatchNormalization(axis=bn_axis, mode=bn_mode, name=bn_name_base + '2c')(x)
+    x = FixedBatchNormalization(trainable=False,axis=bn_axis, name=bn_name_base + '2c')(x)
 
     x = merge([x, input_tensor], mode='sum')
     x = Activation('relu')(x)
@@ -69,17 +70,17 @@ def identity_block_td(input_tensor, kernel_size, filters, stage, block, trainabl
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
     x = TimeDistributed(Convolution2D(nb_filter1, 1, 1, trainable=trainable), name=conv_name_base + '2a')(input_tensor)
-    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2a')(x)
+    x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2a')(x)
 
     x = Activation('relu')(x)
 
-    x = TimeDistributed(Convolution2D(nb_filter2, kernel_size, kernel_size, border_mode='same', trainable=trainable), name=conv_name_base + '2b')(x)
-    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2b')(x)
+    x = TimeDistributed(Convolution2D(nb_filter2, kernel_size, kernel_size, trainable=trainable, border_mode='same'), name=conv_name_base + '2b')(x)
+    x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2b')(x)
 
     x = Activation('relu')(x)
 
     x = TimeDistributed(Convolution2D(nb_filter3, 1, 1, trainable=trainable), name=conv_name_base + '2c')(x)
-    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2c')(x)
+    x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2c')(x)
 
     x = merge([x, input_tensor], mode='sum')
     x = Activation('relu')(x)
@@ -106,18 +107,18 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2),
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
     x = Convolution2D(nb_filter1, 1, 1, subsample=strides, name=conv_name_base + '2a', trainable=trainable)(input_tensor)
-    x = BatchNormalization(axis=bn_axis, mode=bn_mode, name=bn_name_base + '2a')(x)
+    x = FixedBatchNormalization(trainable=False,axis=bn_axis, name=bn_name_base + '2a')(x)
     x = Activation('relu')(x)
 
     x = Convolution2D(nb_filter2, kernel_size, kernel_size, border_mode='same', name=conv_name_base + '2b', trainable=trainable)(x)
-    x = BatchNormalization(axis=bn_axis, mode=bn_mode, name=bn_name_base + '2b')(x)
+    x = FixedBatchNormalization(trainable=False,axis=bn_axis, name=bn_name_base + '2b')(x)
     x = Activation('relu')(x)
 
     x = Convolution2D(nb_filter3, 1, 1, name=conv_name_base + '2c', trainable=trainable)(x)
-    x = BatchNormalization(axis=bn_axis, mode=bn_mode, name=bn_name_base + '2c')(x)
+    x = FixedBatchNormalization(trainable=False,axis=bn_axis, name=bn_name_base + '2c')(x)
 
     shortcut = Convolution2D(nb_filter3, 1, 1, subsample=strides, name=conv_name_base + '1', trainable=trainable)(input_tensor)
-    shortcut = BatchNormalization(axis=bn_axis, mode=bn_mode, name=bn_name_base + '1')(shortcut)
+    shortcut = FixedBatchNormalization(trainable=False,axis=bn_axis, name=bn_name_base + '1')(shortcut)
 
     x = merge([x, shortcut], mode='sum')
     x = Activation('relu')(x)
@@ -143,27 +144,27 @@ def conv_block_td(input_tensor, kernel_size, filters, stage, block, strides=(2, 
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-    x = TimeDistributed(Convolution2D(nb_filter1, 1, 1, subsample=strides, trainable=trainable), name=conv_name_base + '2a', trainable=trainable)(input_tensor)
-    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2a')(x)
+    x = TimeDistributed(Convolution2D(nb_filter1, 1, 1, subsample=strides, trainable=trainable), name=conv_name_base + '2a')(input_tensor)
+    x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2a')(x)
 
     x = Activation('relu')(x)
 
     x = TimeDistributed(Convolution2D(nb_filter2, kernel_size, kernel_size, border_mode='same', trainable=trainable), name=conv_name_base + '2b')(x)
-    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2b')(x)
+    x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2b')(x)
 
     x = Activation('relu')(x)
 
-    x = TimeDistributed(Convolution2D(nb_filter3, 1, 1, trainable=trainable), name=conv_name_base + '2c')(x)
-    #x = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '2c')(x)
+    x = TimeDistributed(Convolution2D(nb_filter3, 1, 1), name=conv_name_base + '2c', trainable=trainable)(x)
+    x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2c')(x)
 
     shortcut = TimeDistributed(Convolution2D(nb_filter3, 1, 1, subsample=strides, trainable=trainable), name=conv_name_base + '1')(input_tensor)
-    #shortcut = BatchNormalization(axis=bn_axis+1, mode=bn_mode, name=bn_name_base + '1')(shortcut)
+    shortcut = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '1')(shortcut)
 
     x = merge([x, shortcut], mode='sum')
     x = Activation('relu')(x)
     return x
 
-def resnet_base(input_tensor=None):
+def resnet_base(input_tensor=None, trainable = False):
 
     # Determine proper input shape
     if K.image_dim_ordering() == 'th':
@@ -185,34 +186,33 @@ def resnet_base(input_tensor=None):
         bn_axis = 1
 
     x = ZeroPadding2D((3, 3))(img_input)
-    x = Convolution2D(64, 7, 7, subsample=(2, 2), name='conv1', trainable = False)(x)
-    x = BatchNormalization(axis=bn_axis, mode=bn_mode, name='bn_conv1')(x)
+
+    x = Convolution2D(64, 7, 7, subsample=(2, 2), name='conv1', trainable = trainable)(x)
+    x = FixedBatchNormalization(trainable=False,axis=bn_axis, name='bn_conv1')(x)
     x = Activation('relu')(x)
     x = MaxPooling2D((3, 3), strides=(2, 2))(x)
 
-    #(input_length - filter_size + stride) // stride
+    x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1), trainable = trainable)
+    x = identity_block(x, 3, [64, 64, 256], stage=2, block='b', trainable = trainable)
+    x = identity_block(x, 3, [64, 64, 256], stage=2, block='c', trainable = trainable)
 
-    x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1), trainable = False)
-    x = identity_block(x, 3, [64, 64, 256], stage=2, block='b', trainable = False)
-    x = identity_block(x, 3, [64, 64, 256], stage=2, block='c', trainable = False)
+    x = conv_block(x, 3, [128, 128, 512], stage=3, block='a', trainable = trainable)
+    x = identity_block(x, 3, [128, 128, 512], stage=3, block='b', trainable = trainable)
+    x = identity_block(x, 3, [128, 128, 512], stage=3, block='c', trainable = trainable)
+    x = identity_block(x, 3, [128, 128, 512], stage=3, block='d', trainable = trainable)
 
-    x = conv_block(x, 3, [128, 128, 512], stage=3, block='a', trainable = False)
-    x = identity_block(x, 3, [128, 128, 512], stage=3, block='b', trainable = False)
-    x = identity_block(x, 3, [128, 128, 512], stage=3, block='c', trainable = False)
-    x = identity_block(x, 3, [128, 128, 512], stage=3, block='d', trainable = False)
-
-    x = conv_block(x, 3, [256, 256, 1024], stage=4, block='a', trainable = False)
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='b', trainable = False)
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='c', trainable = False)
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='d', trainable = False)
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='e', trainable = False)
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='f', trainable = False)
+    x = conv_block(x, 3, [256, 256, 1024], stage=4, block='a', trainable = trainable)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='b', trainable = trainable)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='c', trainable = trainable)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='d', trainable = trainable)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='e', trainable = trainable)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='f', trainable = trainable)
 
     return x
 
-def classifier_layers(x):
-    x = conv_block_td(x, 3, [512, 512, 2048], stage=5, block='a', strides=(1, 1), trainable=False)
-    x = identity_block_td(x, 3, [512, 512, 2048], stage=5, block='b', trainable=False)
+def classifier_layers(x, trainable=False):
+    x = conv_block_td(x, 3, [512, 512, 2048], stage=5, block='a', strides=(1, 1), trainable=trainable)
+    x = identity_block_td(x, 3, [512, 512, 2048], stage=5, block='b', trainable=trainable)
     x = identity_block_td(x, 3, [512, 512, 2048], stage=5, block='c', trainable=True)
 
     x = TimeDistributed(AveragePooling2D((7, 7)), name='avg_pool')(x)
@@ -234,8 +234,9 @@ def classifier(base_layers,input_rois,num_rois,nb_classes = 21):
     pooling_regions = 7
 
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers,input_rois])
-    out_class  = classifier_layers(out_roi_pool)
-    out_class  = TimeDistributed(Flatten())(out_class)
-    out_class  = TimeDistributed(Dense(nb_classes,activation='softmax'),name='dense_{}'.format(nb_classes))(out_class)
+    out = classifier_layers(out_roi_pool)
+    out = TimeDistributed(Flatten(),name='td_flatten')(out)
+    out_class = TimeDistributed(Dense(nb_classes, activation='softmax'), name='dense_class_{}'.format(nb_classes))(out)
+    out_regr = TimeDistributed(Dense(4, activation='linear'), name='dense_regr')(out)
 
-    return (out_class)
+    return [out_class,out_regr]
