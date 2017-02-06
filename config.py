@@ -4,7 +4,7 @@ class Config:
 	def __init__(self):
 		# setting for data augmentation
 		self.use_horizontal_flips = True
-		self.use_vertical_flips = True
+		self.use_vertical_flips = False
 		self.scale_augment = False
 		self.random_rotate = False
 		self.random_rotate_scale = 15.
