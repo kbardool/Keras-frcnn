@@ -86,10 +86,10 @@ class RoiPoolingConv(Layer):
             elif self.dim_ordering == 'tf':
                 for jy in range(num_pool_regions):
                     for ix in range(num_pool_regions):
-                        x1 = x + ix * row_length[pool_num]
-                        x2 = x1 + row_length[pool_num]
-                        y1 = y + jy * col_length[pool_num]
-                        y2 = y1 + col_length[pool_num]
+                        x1 = x + ix * row_length
+                        x2 = x1 + row_length
+                        y1 = y + jy * col_length
+                        y2 = y1 + col_length
 
                         x1 = K.cast(K.round(x1), 'int32')
                         x2 = K.cast(K.round(x2), 'int32')

@@ -1,11 +1,11 @@
 import os
 import cv2
 import xml.etree.ElementTree as ET
-import pdb
-def get_data(data_path):
+
+def get_data(input_path):
 	all_imgs = []
 
-	instances_per_class = {}
+	classes_count = {}
 
 	class_mapping = {}
 
@@ -13,6 +13,7 @@ def get_data(data_path):
 
 	#data_paths = [os.path.join(data_path,s) for s in ['VOC2007', 'VOC2012']]
 	data_paths = [os.path.join(data_path,s) for s in ['VOC2012']]
+
 
 	print('Parsing annotation files')
 
@@ -34,7 +35,7 @@ def get_data(data_path):
 					test_files.append(line.strip() + '.jpg')
 		except Exception as e:
 			print(e)
-
+		
 
 		annots = [os.path.join(annot_path, s) for s in os.listdir(annot_path)]
 		idx = 0
@@ -51,11 +52,8 @@ def get_data(data_path):
 				element_height = int(element.find('size').find('height').text)
 
 				if len(element_objs) > 0:
-					annotation_data = {}
-					annotation_data['filepath'] = os.path.join(imgs_path, element_filename)
-					annotation_data['width'] = element_width
-					annotation_data['height'] = element_height
-					annotation_data['bboxes'] = []
+					annotation_data = {'filepath': os.path.join(imgs_path, element_filename), 'width': element_width,
+									   'height': element_height, 'bboxes': []}
 					if element_filename in trainval_files:
 						annotation_data['imageset'] = 'trainval'
 					elif element_filename in test_files:
@@ -63,13 +61,12 @@ def get_data(data_path):
 					else:
 						annotation_data['imageset'] = 'test'
 
-
 				for element_obj in element_objs:
 					class_name = element_obj.find('name').text
-					if class_name not in instances_per_class:
-						instances_per_class[class_name] = 1
+					if class_name not in classes_count:
+						classes_count[class_name] = 1
 					else:
-						instances_per_class[class_name] += 1
+						classes_count[class_name] += 1
 
 					if class_name not in class_mapping:
 						class_mapping[class_name] = len(class_mapping)
@@ -95,4 +92,4 @@ def get_data(data_path):
 			except Exception as e:
 				print(e)
 				continue
-	return all_imgs,instances_per_class,class_mapping
+	return all_imgs,classes_count,class_mapping
