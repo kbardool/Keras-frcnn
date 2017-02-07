@@ -3,6 +3,7 @@ import numpy as np
 
 
 def augment(img_data, config):
+
 	assert 'filepath' in img_data
 	assert 'bboxes' in img_data
 	assert 'width' in img_data
@@ -28,3 +29,4 @@ def augment(img_data, config):
 			bbox['y1'] = rows - y2
 
 	return img_data, img
+

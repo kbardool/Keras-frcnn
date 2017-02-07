@@ -26,18 +26,18 @@ def iou(a, b):
 	assert b[0] < b[2]
 	assert b[1] < b[3]
 
-	def union(a, b):
-		x = min(a[0], b[0])
-		y = min(a[1], b[1])
-		w = max(a[2], b[2]) - x
-		h = max(a[3], b[3]) - y
+	def union(au, bu):
+		x = min(au[0], bu[0])
+		y = min(au[1], bu[1])
+		w = max(au[2], bu[2]) - x
+		h = max(au[3], bu[3]) - y
 		return x, y, w, h
 
-	def intersection(a, b):
-		x = max(a[0], b[0])
-		y = max(a[1], b[1])
-		w = min(a[2], b[2]) - x
-		h = min(a[3], b[3]) - y
+	def intersection(ai, bi):
+		x = max(ai[0], bi[0])
+		y = max(ai[1], bi[1])
+		w = min(ai[2], bi[2]) - x
+		h = min(ai[3], bi[3]) - y
 		if w < 0 or h < 0:
 			return 0, 0, 0, 0
 		return x, y, w, h
@@ -60,7 +60,7 @@ def get_new_img_size(width, height, img_min_side=600):
 		resized_width = int(f * width)
 		resized_height = img_min_side
 
-	return (resized_width, resized_height)
+	return resized_width, resized_height
 
 
 class SampleSelector:
@@ -114,10 +114,10 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 				continue
 
 			# read in image, and optionally add augmentation
-			img_data, X_img = data_augment.augment(img_data, C)
+			img_data, x_img = data_augment.augment(img_data, C)
 
 			(width, height) = (img_data['width'], img_data['height'])
-			(rows, cols, _) = X_img.shape
+			(rows, cols, _) = x_img.shape
 
 			assert cols == width
 			assert rows == height
@@ -126,15 +126,15 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 			(resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
 
 			# resize the image so that smalles side is length = 600px
-			X_img = cv2.resize(X_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
+			x_img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
 
 			# calculate the output map size based on the network architecture
 			(output_width, output_height) = get_img_output_length(resized_width, resized_height)
 
 			# initialise empty output objectives
-			Y_rpn_overlap = np.zeros((output_height, output_width, num_anchors))
-			Y_is_box_valid = np.zeros((output_height, output_width, num_anchors))
-			Y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
+			y_rpn_overlap = np.zeros((output_height, output_width, num_anchors))
+			y_is_box_valid = np.zeros((output_height, output_width, num_anchors))
+			y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
 
 			# check overlap between anchor boxes and rois
 			num_bboxes = len(img_data['bboxes'])
@@ -215,25 +215,23 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 														int((y2_anc - y1_anc) / downscale)))
 								else:
 									# pos sample
-									pos_samples.append((int(x1_anc / downscale), int(y1_anc / downscale),
-														int((x2_anc - x1_anc) / downscale),
-														int((y2_anc - y1_anc) / downscale)))
+									pos_samples.append((int(x1_anc / downscale), int(y1_anc / downscale), int((x2_anc - x1_anc) / downscale), int((y2_anc - y1_anc) / downscale)))
 									cls_samples.append(bbox['class'])
 
 							# turn on or off outputs depending on IOUs
 							if bbox_type == 'neg':
-								Y_is_box_valid[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 1
-								Y_rpn_overlap[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 0
+								y_is_box_valid[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 1
+								y_rpn_overlap[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 0
 							elif bbox_type == 'neutral':
-								Y_is_box_valid[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 0
-								Y_rpn_overlap[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 0
+								y_is_box_valid[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 0
+								y_rpn_overlap[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 0
 							else:
-								Y_is_box_valid[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 1
-								Y_rpn_overlap[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 1
-								Y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 0] = best_regr[0]
-								Y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 1] = best_regr[1]
-								Y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 2] = best_regr[2]
-								Y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 3] = best_regr[3]
+								y_is_box_valid[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 1
+								y_rpn_overlap[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 1
+								y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 0] = best_regr[0]
+								y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 1] = best_regr[1]
+								y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 2] = best_regr[2]
+								y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 3] = best_regr[3]
 
 			# if a bbox doesnt have a corresponding anchor box, turn on the value with the greatest IOU
 			for idx, num_anchor_for_bbox in enumerate(num_anchors_for_bbox):
@@ -241,36 +239,36 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 					# no box with an IOU greater than zero ...
 					if best_anchor_for_bbox[idx] == 0:
 						continue
-					Y_is_box_valid[
+					y_is_box_valid[
 						best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], best_anchor_for_bbox[idx][2] + 3 *
 						best_anchor_for_bbox[idx][3]] = 1
-					Y_rpn_overlap[
+					y_rpn_overlap[
 						best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], best_anchor_for_bbox[idx][2] + 3 *
 						best_anchor_for_bbox[idx][3]] = 1
-					Y_rpn_regr[
+					y_rpn_regr[
 						best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], 4 * best_anchor_for_bbox[idx][
 							2] + 4 * 3 * best_anchor_for_bbox[idx][3] + 0] = best_dx_for_bbox[idx][0]
-					Y_rpn_regr[
+					y_rpn_regr[
 						best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], 4 * best_anchor_for_bbox[idx][
 							2] + 4 * 3 * best_anchor_for_bbox[idx][3] + 1] = best_dx_for_bbox[idx][1]
-					Y_rpn_regr[
+					y_rpn_regr[
 						best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], 4 * best_anchor_for_bbox[idx][
 							2] + 4 * 3 * best_anchor_for_bbox[idx][3] + 2] = best_dx_for_bbox[idx][2]
-					Y_rpn_regr[
+					y_rpn_regr[
 						best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], 4 * best_anchor_for_bbox[idx][
 							2] + 4 * 3 * best_anchor_for_bbox[idx][3] + 3] = best_dx_for_bbox[idx][3]
 
-			Y_rpn_overlap = np.transpose(Y_rpn_overlap, (2, 0, 1))
-			Y_rpn_overlap = np.expand_dims(Y_rpn_overlap, axis=0)
+			y_rpn_overlap = np.transpose(y_rpn_overlap, (2, 0, 1))
+			y_rpn_overlap = np.expand_dims(y_rpn_overlap, axis=0)
 
-			Y_is_box_valid = np.transpose(Y_is_box_valid, (2, 0, 1))
-			Y_is_box_valid = np.expand_dims(Y_is_box_valid, axis=0)
+			y_is_box_valid = np.transpose(y_is_box_valid, (2, 0, 1))
+			y_is_box_valid = np.expand_dims(y_is_box_valid, axis=0)
 
-			Y_rpn_regr = np.transpose(Y_rpn_regr, (2, 0, 1))
-			Y_rpn_regr = np.expand_dims(Y_rpn_regr, axis=0)
+			y_rpn_regr = np.transpose(y_rpn_regr, (2, 0, 1))
+			y_rpn_regr = np.expand_dims(y_rpn_regr, axis=0)
 
-			pos_locs = np.where(np.logical_and(Y_rpn_overlap[0, :, :, :] == 1, Y_is_box_valid[0, :, :, :] == 1))
-			neg_locs = np.where(np.logical_and(Y_rpn_overlap[0, :, :, :] == 0, Y_is_box_valid[0, :, :, :] == 1))
+			pos_locs = np.where(np.logical_and(y_rpn_overlap[0, :, :, :] == 1, y_is_box_valid[0, :, :, :] == 1))
+			neg_locs = np.where(np.logical_and(y_rpn_overlap[0, :, :, :] == 0, y_is_box_valid[0, :, :, :] == 1))
 
 			if len(pos_samples) == 0:
 				continue
@@ -292,38 +290,38 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C):
 			val_locs = random.sample(range(neg_samples.shape[0]), C.num_rois - valid_cls_samples.shape[0])
 			valid_neg_samples = neg_samples[val_locs, :]
 
-			X_rois = np.expand_dims(np.concatenate([valid_pos_samples, valid_neg_samples]), axis=0)
-			Y_class_num = np.zeros((X_rois.shape[1], len(class_mapping) + 1))
+			x_rois = np.expand_dims(np.concatenate([valid_pos_samples, valid_neg_samples]), axis=0)
+			y_class_num = np.zeros((x_rois.shape[1], len(class_mapping) + 1))
 
-			for i in range(X_rois.shape[1]):
+			for i in range(x_rois.shape[1]):
 				if i < valid_cls_samples.shape[0]:
 					class_num = class_mapping[valid_cls_samples[i]]
-					Y_class_num[i, class_num] = 1
+					y_class_num[i, class_num] = 1
 				else:
-					Y_class_num[i, -1] = 1
+					y_class_num[i, -1] = 1
 
-			Y_class_num = np.expand_dims(Y_class_num, axis=0)
+			y_class_num = np.expand_dims(y_class_num, axis=0)
 			num_pos = len(pos_locs[0])
 
 			if len(pos_locs[0]) > 128:
 				val_locs = random.sample(range(len(pos_locs[0])), len(pos_locs[0]) - 128)
-				Y_is_box_valid[0, pos_locs[0][val_locs], pos_locs[1][val_locs], pos_locs[2][val_locs]] = 0
+				y_is_box_valid[0, pos_locs[0][val_locs], pos_locs[1][val_locs], pos_locs[2][val_locs]] = 0
 				num_pos = 128
 
 			if len(neg_locs[0]) + num_pos > 256:
 				val_locs = random.sample(range(len(neg_locs[0])), len(neg_locs[0]) + num_pos - 256)
-				Y_is_box_valid[0, neg_locs[0][val_locs], neg_locs[1][val_locs], neg_locs[2][val_locs]] = 0
+				y_is_box_valid[0, neg_locs[0][val_locs], neg_locs[1][val_locs], neg_locs[2][val_locs]] = 0
 
-			Y_rpn_cls = np.concatenate([Y_is_box_valid, Y_rpn_overlap], axis=1)
-			Y_rpn_regr = np.concatenate([np.repeat(Y_rpn_overlap, 4, axis=1), Y_rpn_regr], axis=1)
-			Y_class_regr = np.zeros((1,C.num_rois,4))
+			y_rpn_cls = np.concatenate([y_is_box_valid, y_rpn_overlap], axis=1)
+			y_rpn_regr = np.concatenate([np.repeat(y_rpn_overlap, 4, axis=1), y_rpn_regr], axis=1)
+			y_class_regr = np.zeros((1, C.num_rois, 4))
 
-			X_img = np.transpose(X_img, (2, 0, 1))
-			X_img = np.expand_dims(X_img, axis=0).astype('float32')
+			x_img = np.transpose(x_img, (2, 0, 1))
+			x_img = np.expand_dims(x_img, axis=0).astype('float32')
 
 			# Zero-center by mean pixel
-			X_img[:, 0, :, :] -= 103.939
-			X_img[:, 1, :, :] -= 116.779
-			X_img[:, 2, :, :] -= 123.68
+			x_img[:, 0, :, :] -= 103.939
+			x_img[:, 1, :, :] -= 116.779
+			x_img[:, 2, :, :] -= 123.68
 
-			yield [X_img, X_rois], [Y_rpn_cls, Y_rpn_regr, Y_class_num, Y_class_regr]
+			yield [x_img, x_rois], [y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr]
