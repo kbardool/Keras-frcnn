@@ -1,7 +1,6 @@
 import numpy as np
 import pdb
 import math
-use_regr = True
 
 def non_max_suppression_fast(boxes, probs, overlapThresh = 0.95):
 	# if there are no boxes, return an empty list
@@ -76,7 +75,7 @@ def non_max_suppression_fast(boxes, probs, overlapThresh = 0.95):
 	probs = probs[pick]
 	return boxes, probs
 
-def rpn_to_roi(rpn_layer, regr_layer, C):
+def rpn_to_roi(rpn_layer, regr_layer, C, use_regr = True):
 	anchor_sizes = C.anchor_box_scales
 	anchor_ratios = C.anchor_box_ratios
 	assert len(anchor_sizes) * len(anchor_ratios) == rpn_layer.shape[1]
