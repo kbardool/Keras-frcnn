@@ -1,6 +1,10 @@
 from keras import backend as K
+from config import Config
 
-num_anchors = 9
+C = Config()
+
+#num_anchors = 9
+num_anchors = len(C.anchor_box_scales)*len(C.anchor_box_ratios)
 
 lambda_rpn_class = 10.0
 lambda_rpn_regr = 100.0

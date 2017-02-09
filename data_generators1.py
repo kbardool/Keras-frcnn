@@ -4,7 +4,7 @@ import random
 import math
 import data_augment
 
-import threading
+from cython.parallel import prange
 
 def get_img_output_length(width, height):
 	def get_output_length(input_length):
@@ -95,14 +95,12 @@ class SampleSelector:
 			return True
 
 
-
-
 def calcY(C, class_mapping, img_data, width, height, resized_width, resized_height, num_anchors, anchor_sizes, anchor_ratios, downscale):
 	# calculate the output map size based on the network architecture
 	(output_width, output_height) = get_img_output_length(resized_width, resized_height)
 
 	n_anchratios = len(anchor_ratios)
-
+	
 	# initialise empty output objectives
 	Y_rpn_overlap = np.zeros((output_height, output_width, num_anchors))
 	Y_is_box_valid = np.zeros((output_height, output_width, num_anchors))
@@ -119,7 +117,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	'''
 
 	num_anchors_for_bbox = np.zeros(num_bboxes).astype(int)
-	best_anchor_for_bbox = -1*np.ones((num_bboxes, 4)).astype(int)
+	best_anchor_for_bbox = np.nan*np.ones((num_bboxes, 4)).astype(int)
 	best_iou_for_bbox = np.zeros(num_bboxes)
 	best_x_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
 	best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
@@ -127,17 +125,17 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	pos_samples = []
 	cls_samples = []
 	neg_samples = []
+	
+	
 
-
-
-	for anchor_size_idx in xrange(len(anchor_sizes)):
-		for anchor_ratio_idx in xrange(len(anchor_ratios)):
+	for anchor_size_idx in prange(len(anchor_sizes)):
+		for anchor_ratio_idx in prange(len(anchor_ratios)):
 
 			anchor_x = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][0]
 			anchor_y = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][1]
-		
-			for ix in xrange(output_width):
-				for jy in xrange(output_height):
+			
+			for ix in prange(output_width):
+				for jy in prange(output_height):
 					# coordinates of the current anchor box
 					x1_anc = downscale * (ix + 0.5) - anchor_x / 2
 					x2_anc = downscale * (ix + 0.5) + anchor_x / 2
@@ -221,7 +219,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 		num_anchor_for_bbox = num_anchors_for_bbox[idx]
 		if num_anchor_for_bbox == 0:
 			# no box with an IOU greater than zero ...
-			if best_anchor_for_bbox[idx, 0] == -1:
+			if np.isnan(best_anchor_for_bbox[idx, 0]):
 				continue
 			Y_is_box_valid[
 				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], best_anchor_for_bbox[idx,2] + n_anchratios *
@@ -294,33 +292,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	#	pdb.set_trace()
 
 	return Y_rois, Y_rpn_cls, Y_rpn_regr, Y_class_num 
-		
 
 
-class threadsafe_iter:
-    """Takes an iterator/generator and makes it thread-safe by
-    serializing call to the `next` method of given iterator/generator.
-    """
-    def __init__(self, it):
-        self.it = it
-        self.lock = threading.Lock()
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        with self.lock:
-            return self.it.next()		
-
-	
-def threadsafe_generator(f):
-    """A decorator that takes a generator function and makes it thread-safe.
-    """
-    def g(*a, **kw):
-        return threadsafe_iter(f(*a, **kw))
-    return g
-    
-@threadsafe_generator    	
 def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 	downscale = float(C.rpn_stride)
 
@@ -345,7 +318,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 				img_data, img = data_augment.augment(img_data, C, augment=True)
 			else:
 				img_data, img = data_augment.augment(img_data, C, augment=False)
-
+	
 
 			(width, height) = (img_data['width'], img_data['height'])
 			(rows, cols, _) = img.shape
@@ -365,7 +338,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 			Y_rois, Y_rpn_cls, Y_rpn_regr, Y_class_num = calcY(C, class_mapping, img_data, width, height, resized_width, resized_height, num_anchors, anchor_sizes, anchor_ratios, downscale)
 			if Y_rois is None:
 				continue
-	
+			
 			img = np.transpose(img, (2, 0, 1))
 			img = np.expand_dims(img, axis=0).astype('float32')
 			#img -= 127.5
@@ -380,3 +353,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 				yield [img], [Y_rpn_cls, Y_rpn_regr,  Y_class_num]
 			else: #mode=='test'
 				yield img	
+
+		# except Exception as e:
+		#	print(e)
+		#	continue

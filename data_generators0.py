@@ -4,7 +4,6 @@ import random
 import math
 import data_augment
 
-import threading
 
 def get_img_output_length(width, height):
 	def get_output_length(input_length):
@@ -95,13 +94,9 @@ class SampleSelector:
 			return True
 
 
-
-
 def calcY(C, class_mapping, img_data, width, height, resized_width, resized_height, num_anchors, anchor_sizes, anchor_ratios, downscale):
 	# calculate the output map size based on the network architecture
 	(output_width, output_height) = get_img_output_length(resized_width, resized_height)
-
-	n_anchratios = len(anchor_ratios)
 
 	# initialise empty output objectives
 	Y_rpn_overlap = np.zeros((output_height, output_width, num_anchors))
@@ -110,34 +105,24 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 	# check overlap between anchor boxes and rois
 	num_bboxes = len(img_data['bboxes'])
-	'''
 	num_anchors_for_bbox = [0] * num_bboxes
 	best_anchor_for_bbox = [0] * num_bboxes
 	best_iou_for_bbox = [0] * num_bboxes
 	best_x_for_bbox = [[]] * num_bboxes
 	best_dx_for_bbox = [[]] * num_bboxes
-	'''
-
-	num_anchors_for_bbox = np.zeros(num_bboxes).astype(int)
-	best_anchor_for_bbox = -1*np.ones((num_bboxes, 4)).astype(int)
-	best_iou_for_bbox = np.zeros(num_bboxes)
-	best_x_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
-	best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
 
 	pos_samples = []
 	cls_samples = []
 	neg_samples = []
 
+	for ix in xrange(output_width):
+		for jy in xrange(output_height):
+			for anchor_size_idx, anchor_size in enumerate(anchor_sizes):
+				for anchor_ratio_idx, anchor_ratio in enumerate(anchor_ratios):
 
+					anchor_x = anchor_size * anchor_ratio[0]
+					anchor_y = anchor_size * anchor_ratio[1]
 
-	for anchor_size_idx in xrange(len(anchor_sizes)):
-		for anchor_ratio_idx in xrange(len(anchor_ratios)):
-
-			anchor_x = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][0]
-			anchor_y = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][1]
-		
-			for ix in xrange(output_width):
-				for jy in xrange(output_height):
 					# coordinates of the current anchor box
 					x1_anc = downscale * (ix + 0.5) - anchor_x / 2
 					x2_anc = downscale * (ix + 0.5) + anchor_x / 2
@@ -169,12 +154,13 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 						# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
 						if curr_iou > best_iou_for_bbox[bbox_num]:
-							best_anchor_for_bbox[bbox_num, :] = np.array([jy, ix, anchor_ratio_idx, anchor_size_idx])
+							# best_anchor_for_bbox[bbox_num] = [jy,ix,anchor_ratio_idx + 3 * anchor_size_idx]
+							best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
 							best_iou_for_bbox[bbox_num] = curr_iou
-							best_x_for_bbox[bbox_num, :] = np.array([x1_anc, x2_anc, y1_anc, y2_anc])
-							best_dx_for_bbox[bbox_num, :] = np.array([tx, ty, tw, th])
+							best_x_for_bbox[bbox_num] = [x1_anc, x2_anc, y1_anc, y2_anc]
+							best_dx_for_bbox[bbox_num] = [tx, ty, tw, th]
 
-						# if the IOU is >0.3 and <0.7, it is ambiguous and not included in the objective
+						# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
 						if 0.3 < curr_iou < 0.7:
 							# gray zone between neg and pos
 							if bbox_type != 'pos':
@@ -203,35 +189,43 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 					# turn on or off outputs depending on IOUs
 					if bbox_type == 'neg':
-						Y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-						Y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
+						Y_is_box_valid[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 1
+						Y_rpn_overlap[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 0
 					elif bbox_type == 'neutral':
-						Y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
-						Y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
+						Y_is_box_valid[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 0
+						Y_rpn_overlap[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 0
 					else:
-						Y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-						Y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-						start = 4 * anchor_ratio_idx + 4 * n_anchratios * anchor_size_idx
-						Y_rpn_regr[jy, ix, start:start+4 ] = best_regr
-
+						Y_is_box_valid[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 1
+						Y_rpn_overlap[jy, ix, anchor_ratio_idx + 3 * anchor_size_idx] = 1
+						Y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 0] = best_regr[0]
+						Y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 1] = best_regr[1]
+						Y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 2] = best_regr[2]
+						Y_rpn_regr[jy, ix, 4 * anchor_ratio_idx + 4 * 3 * anchor_size_idx + 3] = best_regr[3]
 
 	# if a bbox doesnt have a corresponding anchor box, turn on the value with the greatest IOU
-	#for idx, num_anchor_for_bbox in enumerate(num_anchors_for_bbox):
-	for idx in xrange(num_anchors_for_bbox.shape[0]):
-		num_anchor_for_bbox = num_anchors_for_bbox[idx]
+	for idx, num_anchor_for_bbox in enumerate(num_anchors_for_bbox):
 		if num_anchor_for_bbox == 0:
 			# no box with an IOU greater than zero ...
-			if best_anchor_for_bbox[idx, 0] == -1:
+			if best_anchor_for_bbox[idx] == 0:
 				continue
 			Y_is_box_valid[
-				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], best_anchor_for_bbox[idx,2] + n_anchratios *
-				best_anchor_for_bbox[idx,3]] = 1
+				best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], best_anchor_for_bbox[idx][2] + 3 *
+				best_anchor_for_bbox[idx][3]] = 1
 			Y_rpn_overlap[
-				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], best_anchor_for_bbox[idx,2] + n_anchratios *
-				best_anchor_for_bbox[idx,3]] = 1
-			start = 4 * best_anchor_for_bbox[idx,2] + 4 * n_anchratios * best_anchor_for_bbox[idx,3] + 0	
+				best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], best_anchor_for_bbox[idx][2] + 3 *
+				best_anchor_for_bbox[idx][3]] = 1
 			Y_rpn_regr[
-				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], start:start+4] = best_dx_for_bbox[idx, :]
+				best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], 4 * best_anchor_for_bbox[idx][
+					2] + 4 * 3 * best_anchor_for_bbox[idx][3] + 0] = best_dx_for_bbox[idx][0]
+			Y_rpn_regr[
+				best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], 4 * best_anchor_for_bbox[idx][
+					2] + 4 * 3 * best_anchor_for_bbox[idx][3] + 1] = best_dx_for_bbox[idx][1]
+			Y_rpn_regr[
+				best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], 4 * best_anchor_for_bbox[idx][
+					2] + 4 * 3 * best_anchor_for_bbox[idx][3] + 2] = best_dx_for_bbox[idx][2]
+			Y_rpn_regr[
+				best_anchor_for_bbox[idx][0], best_anchor_for_bbox[idx][1], 4 * best_anchor_for_bbox[idx][
+					2] + 4 * 3 * best_anchor_for_bbox[idx][3] + 3] = best_dx_for_bbox[idx][3]
 
 	Y_rpn_overlap = np.transpose(Y_rpn_overlap, (2, 0, 1))
 	Y_rpn_overlap = np.expand_dims(Y_rpn_overlap, axis=0)
@@ -269,7 +263,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	Y_rois = np.expand_dims(np.concatenate([valid_pos_samples, valid_neg_samples]), axis=0)
 	Y_class_num = np.zeros((Y_rois.shape[1], len(class_mapping) + 1))
 
-	for i in xrange(Y_rois.shape[1]):
+	for i in range(Y_rois.shape[1]):
 		if i < valid_cls_samples.shape[0]:
 			class_num = class_mapping[valid_cls_samples[i]]
 			Y_class_num[i, class_num] = 1
@@ -294,33 +288,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	#	pdb.set_trace()
 
 	return Y_rois, Y_rpn_cls, Y_rpn_regr, Y_class_num 
-		
 
 
-class threadsafe_iter:
-    """Takes an iterator/generator and makes it thread-safe by
-    serializing call to the `next` method of given iterator/generator.
-    """
-    def __init__(self, it):
-        self.it = it
-        self.lock = threading.Lock()
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        with self.lock:
-            return self.it.next()		
-
-	
-def threadsafe_generator(f):
-    """A decorator that takes a generator function and makes it thread-safe.
-    """
-    def g(*a, **kw):
-        return threadsafe_iter(f(*a, **kw))
-    return g
-    
-@threadsafe_generator    	
 def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 	downscale = float(C.rpn_stride)
 
@@ -345,7 +314,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 				img_data, img = data_augment.augment(img_data, C, augment=True)
 			else:
 				img_data, img = data_augment.augment(img_data, C, augment=False)
-
+	
 
 			(width, height) = (img_data['width'], img_data['height'])
 			(rows, cols, _) = img.shape
@@ -365,7 +334,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 			Y_rois, Y_rpn_cls, Y_rpn_regr, Y_class_num = calcY(C, class_mapping, img_data, width, height, resized_width, resized_height, num_anchors, anchor_sizes, anchor_ratios, downscale)
 			if Y_rois is None:
 				continue
-	
+			
 			img = np.transpose(img, (2, 0, 1))
 			img = np.expand_dims(img, axis=0).astype('float32')
 			#img -= 127.5
@@ -380,3 +349,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 				yield [img], [Y_rpn_cls, Y_rpn_regr,  Y_class_num]
 			else: #mode=='test'
 				yield img	
+
+		# except Exception as e:
+		#	print(e)
+		#	continue
