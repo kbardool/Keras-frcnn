@@ -7,7 +7,7 @@ import config
 sys.setrecursionlimit(40000)
 
 C = config.Config()
-C.num_rois = 2
+C.num_rois = 8
 
 
 import parser
@@ -37,6 +37,7 @@ import resnet
 from keras import backend as K
 from keras.optimizers import Adam, SGD
 from keras.layers import Input
+from keras.callbacks import  ModelCheckpoint
 from keras.models import Model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 import losses
@@ -58,10 +59,10 @@ num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 rpn = resnet.rpn(shared_layers,num_anchors)
 
 # the classifier is build on top of the base layers + the ROI pooling layer + extra layers
-classifier = resnet.classifier(shared_layers,roi_input,C.num_rois,nb_classes=len(classes_count)+1)
+classifier = resnet.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count)+1)
 
 # define the full model
-model = Model([img_input,roi_input],rpn + [classifier])
+model = Model([img_input, roi_input], rpn + classifier)
 
 try:
 	print 'loading weights from ', C.base_net_weights
@@ -69,9 +70,12 @@ try:
 except:
 	print('Could not load pretrained model weights')
 
-optimizer = Adam(lr = 1e-5)
-model.compile(optimizer=optimizer, loss=[losses.rpn_loss, losses.robust_l1_loss, 'categorical_crossentropy'])
-model.summary()
+
+
+
+optimizer = Adam(1e-5)
+model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls, losses.rpn_loss_regr, losses.class_loss_cls, losses.class_loss_regr])
+
 
 
 nb_epochs = 50
@@ -91,51 +95,6 @@ nb_val_samples = 1000 # len(val_imgs),
 train_samples_per_epoch = 2000 #len(train_imgs)
 
 print 'starting training'
-model.fit_generator(data_gen_train, samples_per_epoch=train_samples_per_epoch, nb_epoch= nb_epochs, validation_data=data_gen_val, nb_val_samples=nb_val_samples, callbacks=callbacks, max_q_size=10, nb_worker=8)
-
-'''
-nb_epoch = 1000
-best_val_loss = 1e9
-avg_loss_rpn = []
-avg_loss_class = []
-for i in range(1,len(train_imgs) * nb_epochs + 1):
-	
-	if i%2000 == 0:
-
-		# run validation
-		val_rpn_loss = 0
-		val_class_losses = 0
-
-		num_samples_for_val = 1000
-		for j in range(num_samples_for_val):
-
-			[X1,X2], [Y1_class,Y1_regr,Y2] = data_gen_val.next()
-			loss_total,loss_rpn_class,loss_rpn_regr,loss_class = model.test_on_batch([X1,X2],[Y1_class,Y1_regr,Y2])
-			val_class_losses += loss_class
-			val_rpn_loss += loss_rpn_class + loss_rpn_regr
-
-		val_rpn_loss = val_rpn_loss / float(num_samples_for_val)
-		val_class_losses = val_class_losses / float(num_samples_for_val)
-		total_loss = val_rpn_loss + val_class_losses
-
-		print('Validation losses = rpn: {}, classifier: {}'.format(val_rpn_loss,val_class_losses))
-
-		if total_loss < best_val_loss:
-			best_val_loss = total_loss
-
-			model.save_weights(C.model_path)
+model.fit_generator(data_gen_train, samples_per_epoch=train_samples_per_epoch, nb_epoch= nb_epochs, validation_data=data_gen_val, nb_val_samples=nb_val_samples, callbacks=callbacks, max_q_size=10, nb_worker=1)
 
 
-	[X1,X2], [Y1_class,Y1_regr,Y2] = data_gen_train.next()
-	print('i ', str(i))
-	print(X1.shape, X2.shape)
-	loss_total,loss_rpn_class,loss_rpn_regr,loss_class = model.train_on_batch([X1,X2],[Y1_class,Y1_regr,Y2])
-
-	avg_loss_rpn.append(loss_rpn_class + loss_rpn_regr)
-	avg_loss_class.append(loss_class)
-
-	if len(avg_loss_rpn) == 10:
-		print('rpn,{},classifier,{}'.format(sum(avg_loss_rpn)/10.0,sum(avg_loss_class)/10.))
-		avg_loss_rpn = []
-		avg_loss_class = []
-'''

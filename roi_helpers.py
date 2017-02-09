@@ -1,7 +1,6 @@
 import numpy as np
 import pdb
 import math
-use_regr = True
 
 def non_max_suppression_fast(boxes, probs, overlapThresh = 0.95):
 	# if there are no boxes, return an empty list
@@ -56,13 +55,13 @@ def non_max_suppression_fast(boxes, probs, overlapThresh = 0.95):
 
 		ww_un = xx2_un - xx1_un
 		hh_un = yy2_un - yy1_un
-		#pdb.set_trace()
+
 		ww_un = np.maximum(0,ww_un)
 		hh_un = np.maximum(0,hh_un)
 
 		# compute the ratio of overlap
 		overlap = (ww_int*hh_int)/(ww_un*hh_un + 1e-9)
-		#print('num overlaps = {}'.format(len(np.where(overlap > overlapThresh)[0])))
+
 		# delete all indexes from the index list that have
 		idxs = np.delete(idxs, np.concatenate(([last],
 			np.where(overlap > overlapThresh)[0])))
@@ -76,9 +75,9 @@ def non_max_suppression_fast(boxes, probs, overlapThresh = 0.95):
 	probs = probs[pick]
 	return boxes, probs
 
-def rpn_to_roi(rpn_layer, regr_layer, C):
-	anchor_sizes = C.anchor_sizes
-	anchor_ratios = C.anchor_ratios
+def rpn_to_roi(rpn_layer, regr_layer, C, use_regr = True):
+	anchor_sizes = C.anchor_box_scales
+	anchor_ratios = C.anchor_box_ratios
 	assert len(anchor_sizes) * len(anchor_ratios) == rpn_layer.shape[1]
 	assert len(anchor_sizes) * len(anchor_ratios) * 4 == regr_layer.shape[1]
 
@@ -86,14 +85,13 @@ def rpn_to_roi(rpn_layer, regr_layer, C):
 
 	all_boxes = []
 	all_probs = []
-	all_boxes_scaled = []
 
 	(rows,cols) = rpn_layer.shape[2:]
 	curr_layer = 0
 	for anchor_size in anchor_sizes:
 		for anchor_ratio in anchor_ratios:
-			anchor_x = (anchor_size * anchor_ratio[0])/downscale
-			anchor_y = (anchor_size * anchor_ratio[1])/downscale
+			anchor_x = (anchor_size * anchor_ratio[0])/C.rpn_stride
+			anchor_y = (anchor_size * anchor_ratio[1])/C.rpn_stride
 
 			rpn = rpn_layer[0,curr_layer,:,:]
 			regr = regr_layer[0,4 * curr_layer:4 * curr_layer + 4,:,:]
