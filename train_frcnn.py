@@ -7,7 +7,7 @@ import config
 sys.setrecursionlimit(40000)
 
 C = config.Config()
-C.num_rois = 8
+C.num_rois = 2
 
 
 import pascal_voc_parser as parser
@@ -32,19 +32,19 @@ print('Num train samples {}'.format(len(train_imgs)))
 print('Num val samples {}'.format(len(val_imgs)))
 
 
-import data_generators
+from keras_frcnn import data_generators
 
 data_gen_train = data_generators.get_anchor_gt(train_imgs,class_mapping,classes_count,C,mode='train')
 data_gen_val = data_generators.get_anchor_gt(val_imgs,class_mapping,classes_count,C,mode='train')
 
-import darknet as nn
+import keras_frcnn.resnet as nn
 from keras import backend as K
 from keras.optimizers import Adam, SGD
 from keras.layers import Input
 from keras.callbacks import  ModelCheckpoint
 from keras.models import Model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
-import losses
+from keras_frcnn import losses
 
 if K.image_dim_ordering() == 'th':
 	input_shape_img = (3, None, None)

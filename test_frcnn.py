@@ -33,11 +33,8 @@ def format_img(img):
 	img -= 127.5
 	return img
 
-
-
 with open('classes.json', 'r') as class_data_json:
     class_mapping = json.load(class_data_json)
-
 
 class_mapping = {v: k for k, v in class_mapping.iteritems()}
 class_mapping[len(class_mapping)] = 'bg'
@@ -45,11 +42,11 @@ class_mapping[len(class_mapping)] = 'bg'
 class_to_color = {class_mapping[v]:np.random.randint(0,255,3) for v in class_mapping}
 num_rois = 4
 
-import darknet as nn
+import keras_frcnn.resnet as nn
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
-import roi_helpers
+from keras_frcnn import roi_helpers
 
 if K.image_dim_ordering() == 'th':
 	input_shape_img = (3, None, None)
