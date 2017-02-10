@@ -1,6 +1,10 @@
 from keras import backend as K
+from config import Config
 from keras.objectives import categorical_crossentropy, mean_squared_error
-num_anchors = 9
+
+C = Config()
+
+num_anchors = len(C.anchor_box_scales)*len(C.anchor_box_ratios)
 
 lambda_rpn_class = 10.0
 lambda_rpn_regr = 10.0

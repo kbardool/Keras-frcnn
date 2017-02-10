@@ -3,7 +3,6 @@ import pprint
 import sys
 import json
 import config
-import pascal_voc_parser as parser
 
 sys.setrecursionlimit(40000)
 
@@ -32,12 +31,7 @@ val_imgs = [s for s in all_imgs if s['imageset'] == 'test']
 print('Num train samples {}'.format(len(train_imgs)))
 print('Num val samples {}'.format(len(val_imgs)))
 
-import data_generators
 
-data_gen_train = data_generators.get_anchor_gt(train_imgs,class_mapping,classes_count,C)
-data_gen_val = data_generators.get_anchor_gt(val_imgs,class_mapping,classes_count,C)
-
-data_gen_train.next()
 
 import resnet
 from keras import backend as K
@@ -45,6 +39,7 @@ from keras.optimizers import Adam, SGD
 from keras.layers import Input
 from keras.callbacks import  ModelCheckpoint
 from keras.models import Model
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 import losses
 
 if K.image_dim_ordering() == 'th':
@@ -70,30 +65,36 @@ classifier = resnet.classifier(shared_layers, roi_input, C.num_rois, nb_classes=
 model = Model([img_input, roi_input], rpn + classifier)
 
 try:
-	if K.image_dim_ordering() == 'th'		:
-
-		hdf5_filepath = 'resnet50_weights_th_dim_ordering_th_kernels.h5'
-
-	else:
-		hdf5_filepath = 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
-	print 'loading weights from ', hdf5_filepath
-	model.load_weights(hdf5_filepath, by_name=True)
+	print 'loading weights from ', C.base_net_weights
+	model.load_weights(C.base_net_weights, by_name=True)
 except:
 	print('Could not load pretrained model weights')
+
 
 
 
 optimizer = Adam(1e-5)
 model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls, losses.rpn_loss_regr, losses.class_loss_cls, losses.class_loss_regr])
 
-nb_epoch = 1000
 
-best_val_loss = 1e9
+
 nb_epochs = 50
-avg_loss_rpn = []
-avg_loss_class = []
 
-model_checkpoint = ModelCheckpoint('model_frcnn.hdf5',monitor='val_loss',verbose=1,save_best_only=True,save_weights_only=True)
-model.fit_generator(data_gen_train,samples_per_epoch=2000,nb_epoch=100,callbacks=[model_checkpoint],
-					validation_data=data_gen_val,nb_val_samples=1000)
+
+import data_generators
+
+data_gen_train = data_generators.get_anchor_gt(train_imgs,class_mapping,classes_count,C,mode='train')
+data_gen_val = data_generators.get_anchor_gt(val_imgs,class_mapping,classes_count,C,mode='train')
+
+
+
+
+callbacks = [EarlyStopping(monitor='val_loss', patience=2, verbose=0),
+				ModelCheckpoint(C.model_path, monitor='val_loss', save_best_only=True, verbose=0)]
+nb_val_samples = 1000 # len(val_imgs),
+train_samples_per_epoch = 2000 #len(train_imgs)
+
+print 'starting training'
+model.fit_generator(data_gen_train, samples_per_epoch=train_samples_per_epoch, nb_epoch= nb_epochs, validation_data=data_gen_val, nb_val_samples=nb_val_samples, callbacks=callbacks, max_q_size=10, nb_worker=1)
+
 

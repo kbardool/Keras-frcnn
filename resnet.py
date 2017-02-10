@@ -69,18 +69,20 @@ def identity_block_td(input_tensor, kernel_size, filters, stage, block, trainabl
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-    x = TimeDistributed(Convolution2D(nb_filter1, 1, 1, trainable=trainable), name=conv_name_base + '2a')(input_tensor)
+
+    x = TimeDistributed(Convolution2D(nb_filter1, 1, 1, trainable=trainable, init='normal'), name=conv_name_base + '2a')(input_tensor)
     x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2a')(x)
 
     x = Activation('relu')(x)
 
-    x = TimeDistributed(Convolution2D(nb_filter2, kernel_size, kernel_size, trainable=trainable, border_mode='same'), name=conv_name_base + '2b')(x)
+    x = TimeDistributed(Convolution2D(nb_filter2, kernel_size, kernel_size, trainable=trainable, init='normal',border_mode='same'), name=conv_name_base + '2b')(x)
     x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2b')(x)
 
     x = Activation('relu')(x)
 
-    x = TimeDistributed(Convolution2D(nb_filter3, 1, 1, trainable=trainable), name=conv_name_base + '2c')(x)
+    x = TimeDistributed(Convolution2D(nb_filter3, 1, 1, trainable=trainable, init='normal'), name=conv_name_base + '2c')(x)
     x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2c')(x)
+
 
     x = merge([x, input_tensor], mode='sum')
     x = Activation('relu')(x)
@@ -144,21 +146,22 @@ def conv_block_td(input_tensor, kernel_size, filters, stage, block, strides=(2, 
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-    x = TimeDistributed(Convolution2D(nb_filter1, 1, 1, subsample=strides, trainable=trainable), name=conv_name_base + '2a')(input_tensor)
+    x = TimeDistributed(Convolution2D(nb_filter1, 1, 1, subsample=strides, trainable=trainable, init='normal'), name=conv_name_base + '2a')(input_tensor)
     x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2a')(x)
 
     x = Activation('relu')(x)
 
-    x = TimeDistributed(Convolution2D(nb_filter2, kernel_size, kernel_size, border_mode='same', trainable=trainable), name=conv_name_base + '2b')(x)
+    x = TimeDistributed(Convolution2D(nb_filter2, kernel_size, kernel_size, border_mode='same', trainable=trainable, init='normal'), name=conv_name_base + '2b')(x)
     x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2b')(x)
 
     x = Activation('relu')(x)
 
-    x = TimeDistributed(Convolution2D(nb_filter3, 1, 1), name=conv_name_base + '2c', trainable=trainable)(x)
+    x = TimeDistributed(Convolution2D(nb_filter3, 1, 1, init='normal'), name=conv_name_base + '2c', trainable=trainable)(x)
     x = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '2c')(x)
 
-    shortcut = TimeDistributed(Convolution2D(nb_filter3, 1, 1, subsample=strides, trainable=trainable), name=conv_name_base + '1')(input_tensor)
+    shortcut = TimeDistributed(Convolution2D(nb_filter3, 1, 1, subsample=strides, trainable=trainable, init='normal'), name=conv_name_base + '1')(input_tensor)
     shortcut = TimeDistributed(FixedBatchNormalization(trainable=False,axis=bn_axis), name=bn_name_base + '1')(shortcut)
+
 
     x = merge([x, shortcut], mode='sum')
     x = Activation('relu')(x)
@@ -233,9 +236,11 @@ def classifier(base_layers,input_rois,num_rois,nb_classes = 21):
     pooling_regions = 7
 
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers,input_rois])
+
     out = classifier_layers(out_roi_pool)
     out = TimeDistributed(Flatten(),name='td_flatten')(out)
     out_class = TimeDistributed(Dense(nb_classes, activation='softmax'), name='dense_class_{}'.format(nb_classes))(out)
     out_regr = TimeDistributed(Dense(4, activation='linear'), name='dense_regr')(out)
+
 
     return [out_class,out_regr]
