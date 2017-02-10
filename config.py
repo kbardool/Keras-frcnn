@@ -11,7 +11,7 @@ class Config:
 		self.random_rotate_scale = 15.
 
 		# anchor box scales
-		self.anchor_box_scales = [128, 256, 512] #[128, 256, 512] 
+		self.anchor_box_scales = [128, 256, 512]
 
 		# anchor box ratios
 		self.anchor_box_ratios = [[1, 1], [1, 2], [2, 1]]
@@ -30,7 +30,7 @@ class Config:
 		
 		#location of pretrained weights for the base network 
 		if K.image_dim_ordering() == 'th'		:
-			self.base_net_weights = 'resnet50_weights_th_dim_ordering_th_kernels.h5'
+			self.base_net_weights = 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
 		else:
 			self.base_net_weights = 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
 		
