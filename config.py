@@ -29,7 +29,7 @@ class Config:
 		self.balanced_classes = True
 		
 		#location of pretrained weights for the base network 
-		if K.image_dim_ordering() == 'th'		:
+		if K.image_dim_ordering() == 'th':
 			self.base_net_weights = 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
 		else:
 			self.base_net_weights = 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
