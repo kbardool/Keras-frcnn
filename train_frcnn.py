@@ -10,7 +10,7 @@ C = config.Config()
 C.num_rois = 8
 
 
-import parser
+import pascal_voc_parser as parser
 all_imgs,classes_count,class_mapping = parser.get_data(sys.argv[1])
 
 
@@ -74,7 +74,7 @@ except:
 
 
 optimizer = Adam(1e-5)
-model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls, losses.rpn_loss_regr, losses.class_loss_cls, losses.class_loss_regr])
+model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), losses.class_loss_cls, losses.class_loss_regr])
 
 
 
