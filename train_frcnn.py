@@ -32,8 +32,12 @@ print('Num train samples {}'.format(len(train_imgs)))
 print('Num val samples {}'.format(len(val_imgs)))
 
 
+import data_generators
 
-import resnet
+data_gen_train = data_generators.get_anchor_gt(train_imgs,class_mapping,classes_count,C,mode='train')
+data_gen_val = data_generators.get_anchor_gt(val_imgs,class_mapping,classes_count,C,mode='train')
+
+import darknet as nn
 from keras import backend as K
 from keras.optimizers import Adam, SGD
 from keras.layers import Input
@@ -52,14 +56,14 @@ img_input = Input(shape=input_shape_img)
 roi_input = Input(shape=(C.num_rois, 4))
 
 # define the base network (resnet here, can be VGG, Inception, etc)
-shared_layers = resnet.resnet_base(img_input)
+shared_layers = nn.nn_base(img_input)
 
 # define the RPN, built on the base layers
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
-rpn = resnet.rpn(shared_layers,num_anchors)
+rpn = nn.rpn(shared_layers,num_anchors)
 
 # the classifier is build on top of the base layers + the ROI pooling layer + extra layers
-classifier = resnet.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count)+1)
+classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count)+1)
 
 # define the full model
 model = Model([img_input, roi_input], rpn + classifier)
@@ -70,24 +74,10 @@ try:
 except:
 	print('Could not load pretrained model weights')
 
-
-
-
 optimizer = Adam(1e-5)
 model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), losses.class_loss_cls, losses.class_loss_regr])
 
-
-
 nb_epochs = 50
-
-
-import data_generators
-
-data_gen_train = data_generators.get_anchor_gt(train_imgs,class_mapping,classes_count,C,mode='train')
-data_gen_val = data_generators.get_anchor_gt(val_imgs,class_mapping,classes_count,C,mode='train')
-
-
-
 
 callbacks = [EarlyStopping(monitor='val_loss', patience=2, verbose=0),
 				ModelCheckpoint(C.model_path, monitor='val_loss', save_best_only=True, verbose=0)]
