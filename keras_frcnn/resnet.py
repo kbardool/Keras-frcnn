@@ -167,7 +167,7 @@ def conv_block_td(input_tensor, kernel_size, filters, stage, block, strides=(2, 
     x = Activation('relu')(x)
     return x
 
-def resnet_base(input_tensor=None, trainable = False):
+def nn_base(input_tensor=None, trainable = False):
 
     # Determine proper input shape
     if K.image_dim_ordering() == 'th':
