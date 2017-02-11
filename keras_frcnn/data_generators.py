@@ -124,13 +124,23 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	cls_samples = []
 	neg_samples = []
 
-	for ix in xrange(output_width):
-		for jy in xrange(output_height):
-			for anchor_size_idx, anchor_size in enumerate(anchor_sizes):
-				for anchor_ratio_idx, anchor_ratio in enumerate(anchor_ratios):
+	gta = np.zeros((num_bboxes, 4))
+	for bbox_num, bbox in enumerate(img_data['bboxes']):
+		# get the GT box coordinates, and resize to account for image resizing
+		gta[bbox_num, 0] = bbox['x1'] * (resized_width / float(width))
+		gta[bbox_num, 1] = bbox['x2'] * (resized_width / float(width))
+		gta[bbox_num, 2] = bbox['y1'] * (resized_height / float(height))
+		gta[bbox_num, 3] = bbox['y2'] * (resized_height / float(height))
 
-					anchor_x = anchor_size * anchor_ratio[0]
-					anchor_y = anchor_size * anchor_ratio[1]
+
+	for anchor_size_idx, anchor_size in enumerate(anchor_sizes):
+		for anchor_ratio_idx, anchor_ratio in enumerate(anchor_ratios):
+
+			anchor_x = anchor_size * anchor_ratio[0]
+			anchor_y = anchor_size * anchor_ratio[1]
+			
+			for ix in xrange(output_width):
+				for jy in xrange(output_height):
 
 					# coordinates of the current anchor box
 					x1_anc = downscale * (ix + 0.5) - anchor_x / 2
@@ -146,11 +156,6 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 					bbox_type = 'neg'
 
 					for bbox_num, bbox in enumerate(img_data['bboxes']):
-						# get the GT box coordinates, and resize to account for image resizing
-						gta[bbox_num, 0] = bbox['x1'] * (resized_width / float(width))
-						gta[bbox_num, 1] = bbox['x2'] * (resized_width / float(width))
-						gta[bbox_num, 2] = bbox['y1'] * (resized_height / float(height))
-						gta[bbox_num, 3] = bbox['y2'] * (resized_height / float(height))
 
 						# calculate the regression targets
 						tx = (gta[bbox_num, 0] - x1_anc) / (x2_anc - x1_anc)
