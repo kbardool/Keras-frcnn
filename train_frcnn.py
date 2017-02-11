@@ -10,7 +10,7 @@ C = config.Config()
 C.num_rois = 2
 
 
-import pascal_voc_parser as parser
+from keras_frcnn import pascal_voc_parser as parser
 all_imgs,classes_count,class_mapping = parser.get_data(sys.argv[1])
 
 
