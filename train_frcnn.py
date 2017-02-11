@@ -2,7 +2,7 @@ import random
 import pprint
 import sys
 import json
-import config
+from keras_frcnn import config
 
 sys.setrecursionlimit(40000)
 
