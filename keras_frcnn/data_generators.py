@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import random
 import math
+import copy
 import data_augment
 
 import threading
@@ -95,7 +96,7 @@ class SampleSelector:
 			return True
 
 
-
+#TODO: refactor this code, way too many arguments
 def calcY(C, class_mapping, img_data, width, height, resized_width, resized_height, num_anchors, anchor_sizes, anchor_ratios, downscale):
 	# calculate the output map size based on the network architecture
 	(output_width, output_height) = get_img_output_length(resized_width, resized_height)
@@ -284,29 +285,29 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 
 class threadsafe_iter:
-    """Takes an iterator/generator and makes it thread-safe by
-    serializing call to the `next` method of given iterator/generator.
-    """
-    def __init__(self, it):
-        self.it = it
-        self.lock = threading.Lock()
+	"""Takes an iterator/generator and makes it thread-safe by
+	serializing call to the `next` method of given iterator/generator.
+	"""
+	def __init__(self, it):
+		self.it = it
+		self.lock = threading.Lock()
 
-    def __iter__(self):
-        return self
+	def __iter__(self):
+		return self
 
-    def next(self):
-        with self.lock:
-            return self.it.next()		
+	def next(self):
+		with self.lock:
+			return self.it.next()		
 
 	
 def threadsafe_generator(f):
-    """A decorator that takes a generator function and makes it thread-safe.
-    """
-    def g(*a, **kw):
-        return threadsafe_iter(f(*a, **kw))
-    return g
-    
-@threadsafe_generator    	
+	"""A decorator that takes a generator function and makes it thread-safe.
+	"""
+	def g(*a, **kw):
+		return threadsafe_iter(f(*a, **kw))
+	return g
+
+#@threadsafe_generator
 def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 	downscale = float(C.rpn_stride)
 
@@ -329,11 +330,11 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 			# read in image, and optionally add augmentation
 
 			if mode=='train':
-				img_data, x_img = data_augment.augment(img_data, C, augment=True)
+				img_data_aug, x_img = data_augment.augment(img_data, C, augment=True)
 			else:
-				img_data, x_img = data_augment.augment(img_data, C, augment=False)
+				img_data_aug, x_img = data_augment.augment(img_data, C, augment=False)
 
-			(width, height) = (img_data['width'], img_data['height'])
+			(width, height) = (img_data_aug['width'], img_data_aug['height'])
 			(rows, cols, _) = x_img.shape
 
 			assert cols == width
@@ -348,7 +349,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 			# calculate the output map size based on the network architecture
 			(output_width, output_height) = get_img_output_length(resized_width, resized_height)
 
-			x_rois, y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr = calcY(C, class_mapping, img_data, width, height, resized_width, resized_height, num_anchors, anchor_sizes, anchor_ratios, downscale)
+			x_rois, y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr = calcY(C, class_mapping, img_data_aug, width, height, resized_width, resized_height, num_anchors, anchor_sizes, anchor_ratios, downscale)
 			if x_rois is None:
 				continue
 

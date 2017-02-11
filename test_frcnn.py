@@ -33,11 +33,8 @@ def format_img(img):
 	img -= 127.5
 	return img
 
-
-
 with open('classes.json', 'r') as class_data_json:
     class_mapping = json.load(class_data_json)
-
 
 class_mapping = {v: k for k, v in class_mapping.iteritems()}
 class_mapping[len(class_mapping)] = 'bg'
@@ -45,11 +42,11 @@ class_mapping[len(class_mapping)] = 'bg'
 class_to_color = {class_mapping[v]:np.random.randint(0,255,3) for v in class_mapping}
 num_rois = 4
 
-import resnet
+import keras_frcnn.resnet as nn
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
-import roi_helpers
+from keras_frcnn import roi_helpers
 
 if K.image_dim_ordering() == 'th':
 	input_shape_img = (3, None, None)
@@ -66,16 +63,16 @@ feature_map_input = Input(shape=input_shape_features)
 roi_input = Input(shape=(num_rois, 4))
 
 # define the base network (resnet here, can be VGG, Inception, etc)
-shared_layers = resnet.resnet_base(img_input)
+shared_layers = nn.nn_base(img_input)
 
 # define the RPN, built on the base layers
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
-rpn = resnet.rpn(shared_layers,num_anchors)
+rpn = nn.rpn(shared_layers,num_anchors)
 
 # classifier, uses base layers + proposals
 print(class_mapping)
 
-classifier = resnet.classifier(feature_map_input,roi_input,num_rois,nb_classes=len(class_mapping))
+classifier = nn.classifier(feature_map_input,roi_input,num_rois,nb_classes=len(class_mapping))
 
 model_rpn = Model(img_input,rpn + [shared_layers])
 model_classifier = Model([feature_map_input,roi_input],classifier)
