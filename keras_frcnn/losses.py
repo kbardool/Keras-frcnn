@@ -22,9 +22,17 @@ def rpn_loss_cls(num_anchors):
 	return rpn_loss_cls_fixed_num
 
 
-def class_loss_regr(y_true, y_pred):
-	return mean_squared_error(y_true, y_pred)
+#def class_loss_regr(y_true, y_pred):
+#	return mean_squared_error(y_true, y_pred)
 
 
 def class_loss_cls(y_true, y_pred):
 	return categorical_crossentropy(y_true, y_pred)
+
+def class_loss_regr(num_rois):
+	def class_loss_regr_fixed_num(y_true, y_pred):
+		x = y_true[:, num_rois:, :] - y_pred
+		x_abs = K.abs(x)
+		x_bool = K.lesser_equal(x_abs, 1.0)
+		return K.sum(y_true[:, :num_rois, :] * (x_bool * (0.5 * x * x) + (1 - x_bool) * (x_abs - 0.5))) / num_rois
+	return class_loss_regr_fixed_num
