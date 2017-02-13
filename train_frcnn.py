@@ -10,9 +10,14 @@ C = config.Config()
 C.num_rois = 2
 
 
-import pascal_voc_parser as parser
+#import pascal_voc_parser as parser
+import keras_frcnn.simple_parser as parser
+
 all_imgs,classes_count,class_mapping = parser.get_data(sys.argv[1])
 
+if 'bg' not in classes_count:
+	classes_count['bg'] = 0
+	class_mapping['bg'] = len(class_mapping)
 
 with open('classes.json', 'w') as class_data_json:
     json.dump(class_mapping, class_data_json)
@@ -36,7 +41,7 @@ from keras_frcnn import data_generators
 
 data_gen_train = data_generators.get_anchor_gt(train_imgs,class_mapping,classes_count,C,mode='train')
 data_gen_val = data_generators.get_anchor_gt(val_imgs,class_mapping,classes_count,C,mode='train')
-
+data_gen_train.next()
 import keras_frcnn.resnet as nn
 from keras import backend as K
 from keras.optimizers import Adam, SGD
@@ -63,11 +68,11 @@ num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 rpn = nn.rpn(shared_layers,num_anchors)
 
 # the classifier is build on top of the base layers + the ROI pooling layer + extra layers
-classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count)+1)
+classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count))
 
 # define the full model
 model = Model([img_input, roi_input], rpn + classifier)
-
+model.summary()
 try:
 	print 'loading weights from ', C.base_net_weights
 	model.load_weights(C.base_net_weights, by_name=True)
@@ -75,7 +80,7 @@ except:
 	print('Could not load pretrained model weights')
 
 optimizer = Adam(1e-5)
-model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), losses.class_loss_cls, losses.class_loss_regr])
+model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), losses.class_loss_cls, losses.class_loss_regr(C.num_rois)])
 
 nb_epochs = 50
 
