@@ -2,12 +2,12 @@ import random
 import pprint
 import sys
 import json
-import config
+from keras_frcnn import config
 
 sys.setrecursionlimit(40000)
 
 C = config.Config()
-C.num_rois = 2
+C.num_rois = 8
 
 
 #import pascal_voc_parser as parser
@@ -41,8 +41,8 @@ from keras_frcnn import data_generators
 
 data_gen_train = data_generators.get_anchor_gt(train_imgs,class_mapping,classes_count,C,mode='train')
 data_gen_val = data_generators.get_anchor_gt(val_imgs,class_mapping,classes_count,C,mode='train')
-data_gen_train.next()
-import keras_frcnn.resnet as nn
+
+from keras_frcnn import resnet as nn
 from keras import backend as K
 from keras.optimizers import Adam, SGD
 from keras.layers import Input
@@ -72,24 +72,25 @@ classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(
 
 # define the full model
 model = Model([img_input, roi_input], rpn + classifier)
-model.summary()
+
 try:
 	print 'loading weights from ', C.base_net_weights
 	model.load_weights(C.base_net_weights, by_name=True)
 except:
 	print('Could not load pretrained model weights')
 
-optimizer = Adam(1e-5)
+optimizer = Adam(1e-6)
 model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), losses.class_loss_cls, losses.class_loss_regr(C.num_rois)])
 
 nb_epochs = 50
 
 callbacks = [EarlyStopping(monitor='val_loss', patience=2, verbose=0),
 				ModelCheckpoint(C.model_path, monitor='val_loss', save_best_only=True, verbose=0)]
-nb_val_samples = 1000 # len(val_imgs),
 train_samples_per_epoch = 2000 #len(train_imgs)
+nb_val_samples = 500 # len(val_imgs),
 
-print 'starting training'
+print 'Starting training'
+
 model.fit_generator(data_gen_train, samples_per_epoch=train_samples_per_epoch, nb_epoch= nb_epochs, validation_data=data_gen_val, nb_val_samples=nb_val_samples, callbacks=callbacks, max_q_size=10, nb_worker=1)
 
 

@@ -8,7 +8,7 @@ import cv2
 import json
 import numpy as np
 import sys
-import config
+from keras_frcnn import config
 
 sys.setrecursionlimit(40000)
 C = config.Config()

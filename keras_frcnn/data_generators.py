@@ -4,7 +4,6 @@ import random
 import math
 import copy
 import data_augment
-import pdb
 import threading
 
 def get_img_output_length(width, height):
@@ -118,6 +117,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 	pos_samples = []
 	cls_samples = []
+	cls_regr_samples = []
 	neg_samples = []
 
 	for ix in xrange(output_width):
@@ -189,6 +189,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 							# pos sample
 							pos_samples.append((int(x1_anc / downscale), int(y1_anc / downscale), int((x2_anc - x1_anc) / downscale), int((y2_anc - y1_anc) / downscale)))
 							cls_samples.append(bbox['class'])
+							cls_regr_samples.append([tx,ty,tw,th])
 
 					# turn on or off outputs depending on IOUs
 					if bbox_type == 'neg':
@@ -241,6 +242,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	pos_samples = np.array(pos_samples)
 	neg_samples = np.array(neg_samples)
 	cls_samples = np.array(cls_samples)
+	cls_regr_samples = np.array(cls_regr_samples)
 
 	target_pos_samples = C.num_rois / 2
 
@@ -248,18 +250,20 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 		val_locs = random.sample(range(pos_samples.shape[0]), target_pos_samples)
 		valid_pos_samples = pos_samples[val_locs, :]
 		valid_cls_samples = cls_samples[val_locs]
+		valid_regr_samples = cls_regr_samples[val_locs,:]
 	else:
 		valid_pos_samples = pos_samples
 		valid_cls_samples = cls_samples
+		valid_regr_samples = cls_regr_samples
 
 	val_locs = random.sample(range(neg_samples.shape[0]), C.num_rois - valid_cls_samples.shape[0])
 	valid_neg_samples = neg_samples[val_locs, :]
 
 	x_rois = np.expand_dims(np.concatenate([valid_pos_samples, valid_neg_samples]), axis=0)
 	
-	y_class_num = np.zeros((x_rois.shape[1], len(class_mapping) + 1))
-	# regr has 5 values: 1 for on/off, 4 for w,y,w,h
-	y_class_regr = np.zeros((x_rois.shape[1], 5))
+	y_class_num = np.zeros((x_rois.shape[1], len(class_mapping)))
+	# regr has 8 values: 4 for on/off, 4 for w,y,w,h
+	y_class_regr = np.zeros((x_rois.shape[1], 2*4))
 
 	for i in range(x_rois.shape[1]):
 		if i < valid_cls_samples.shape[0]:
@@ -269,7 +273,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 			y_class_num[i, -1] = 1
 		# NB: we only y_class_regr set to positive here if the sample is not from the bg class
 		if y_class_num[i, -1] != 1:
-			y_class_regr[i, 0] = 1 # set value to 1 if the sample is positive
+			y_class_regr[i, :4] = 1 # set value to 1 if the sample is positive
+			y_class_regr[i,4:] = valid_regr_samples[i,:]
 
 	y_class_num = np.expand_dims(y_class_num, axis=0)
 	y_class_regr = np.expand_dims(y_class_regr, axis=0)
@@ -287,7 +292,6 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 	y_rpn_cls = np.concatenate([y_is_box_valid, y_rpn_overlap], axis=1)
 	y_rpn_regr = np.concatenate([np.repeat(y_rpn_overlap, 4, axis=1), y_rpn_regr], axis=1)
-	pdb.set_trace()
 
 	return x_rois, y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr
 

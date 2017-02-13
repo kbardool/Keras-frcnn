@@ -11,8 +11,8 @@ from keras.layers import merge, Input
 from keras.layers import Dense, Activation, Flatten
 from keras.layers import Convolution2D, MaxPooling2D, ZeroPadding2D, AveragePooling2D, TimeDistributed
 from keras import backend as K
-from RoiPoolingConv import RoiPoolingConv
-from FixedBatchNormalization import FixedBatchNormalization
+from .RoiPoolingConv import RoiPoolingConv
+from .FixedBatchNormalization import FixedBatchNormalization
 import h5py
 
 bn_mode = 0
