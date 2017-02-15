@@ -65,8 +65,6 @@ def get_new_img_size(width, height, img_min_side=600):
 	return resized_width, resized_height
 
 
-
-
 class SampleSelector:
 	def __init__(self, class_count):
 		# ignore classes that have zero samples
@@ -137,7 +135,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 					# bbox_type indicates whether an anchor should be a target 
 					bbox_type = 'neg'
-
+					best_iou_for_loc = 0.0
 					for bbox_num, bbox in enumerate(img_data['bboxes']):
 						# get the GT box coordinates, and resize to account for image resizing
 						x1_gt = bbox['x1'] * (resized_width / float(width))
@@ -162,6 +160,10 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 								best_x_for_bbox[bbox_num] = [x1_anc, x2_anc, y1_anc, y2_anc]
 								best_dx_for_bbox[bbox_num] = [tx, ty, tw, th]
 
+							if curr_iou > best_iou_for_loc:
+								best_iou_for_loc = curr_iou
+								best_regr = (tx, ty, tw, th)
+
 							# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
 							if 0.3 < curr_iou < 0.7:
 								# gray zone between neg and pos
@@ -171,7 +173,6 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 								# there may be multiple overlapping bboxes here
 								bbox_type = 'pos'
 								num_anchors_for_bbox[bbox_num] += 1
-								best_regr = (tx, ty, tw, th)
 
 						# samples for classification network
 						if curr_iou < 0.1:
