@@ -5,6 +5,7 @@ import math
 import copy
 import data_augment
 import threading
+import itertools
 
 def get_img_output_length(width, height):
 	def get_output_length(input_length):
@@ -64,16 +65,17 @@ def get_new_img_size(width, height, img_min_side=600):
 	return resized_width, resized_height
 
 
+
+
 class SampleSelector:
 	def __init__(self, class_count):
-		# setting for data augmentation
-		self.classes = class_count.keys()
-		self.curr_class = 0
-		self.num_classes = len(self.classes)
+		# ignore classes that have zero samples
+		self.classes = [b for b in class_count.keys() if class_count[b] != 0]
+		self.class_cycle = itertools.cycle(self.classes)
 
 	def skip_sample_for_balanced_class(self, img_data):
-		curr_class = self.classes[self.curr_class]
 
+		curr_class = self.class_cycle.next()
 		class_in_img = False
 
 		for bbox in img_data['bboxes']:
@@ -85,11 +87,6 @@ class SampleSelector:
 				break
 
 		if class_in_img:
-			self.curr_class += 1
-
-			if self.curr_class == self.num_classes:
-				self.curr_class = 0
-
 			return False
 		else:
 			return True
@@ -156,25 +153,25 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 						# get IOU of the current GT box and the current anchor box
 						curr_iou = iou([x1_gt, y1_gt, x2_gt, y2_gt], [x1_anc, y1_anc, x2_anc, y2_anc])
+						if bbox['class'] != 'bg':
+							# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
+							if curr_iou > best_iou_for_bbox[bbox_num]:
+								# best_anchor_for_bbox[bbox_num] = [jy,ix,anchor_ratio_idx + 3 * anchor_size_idx]
+								best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
+								best_iou_for_bbox[bbox_num] = curr_iou
+								best_x_for_bbox[bbox_num] = [x1_anc, x2_anc, y1_anc, y2_anc]
+								best_dx_for_bbox[bbox_num] = [tx, ty, tw, th]
 
-						# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
-						if curr_iou > best_iou_for_bbox[bbox_num]:
-							# best_anchor_for_bbox[bbox_num] = [jy,ix,anchor_ratio_idx + 3 * anchor_size_idx]
-							best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
-							best_iou_for_bbox[bbox_num] = curr_iou
-							best_x_for_bbox[bbox_num] = [x1_anc, x2_anc, y1_anc, y2_anc]
-							best_dx_for_bbox[bbox_num] = [tx, ty, tw, th]
-
-						# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
-						if 0.3 < curr_iou < 0.7:
-							# gray zone between neg and pos
-							if bbox_type != 'pos':
-								bbox_type = 'neutral'
-						elif curr_iou > 0.7:
-							# there may be multiple overlapping bboxes here
-							bbox_type = 'pos'
-							num_anchors_for_bbox[bbox_num] += 1
-							best_regr = (tx, ty, tw, th)
+							# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
+							if 0.3 < curr_iou < 0.7:
+								# gray zone between neg and pos
+								if bbox_type != 'pos':
+									bbox_type = 'neutral'
+							elif curr_iou > 0.7:
+								# there may be multiple overlapping bboxes here
+								bbox_type = 'pos'
+								num_anchors_for_bbox[bbox_num] += 1
+								best_regr = (tx, ty, tw, th)
 
 						# samples for classification network
 						if curr_iou < 0.1:
