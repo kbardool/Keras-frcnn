@@ -8,7 +8,7 @@ import cv2
 import json
 import numpy as np
 import sys
-import config
+from keras_frcnn import config
 
 sys.setrecursionlimit(40000)
 C = config.Config()
@@ -36,8 +36,10 @@ def format_img(img):
 with open('classes.json', 'r') as class_data_json:
     class_mapping = json.load(class_data_json)
 
+if 'bg' not in class_mapping:
+	class_mapping['bg'] = len(class_mapping)
+
 class_mapping = {v: k for k, v in class_mapping.iteritems()}
-class_mapping[len(class_mapping)] = 'bg'
 
 class_to_color = {class_mapping[v]:np.random.randint(0,255,3) for v in class_mapping}
 num_rois = 4

@@ -5,7 +5,6 @@ import copy
 import data_augment
 import threading
 import itertools
-
 import numba
 
 
@@ -178,6 +177,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 								tw = np.log((gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
 								th = np.log((gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2_anc - y1_anc))
 													
+
 								best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
 								best_iou_for_bbox[bbox_num] = curr_iou
 								best_x_for_bbox[bbox_num] = [x1_anc, x2_anc, y1_anc, y2_anc]
@@ -188,6 +188,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 									bbox_type = 'pos'
 									num_anchors_for_bbox[bbox_num] += 1
 									best_regr = (tx, ty, tw, th)
+
 
 							# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
 							if 0.3 < curr_iou < 0.7:
@@ -208,7 +209,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 						else:
 							# pos sample
 							pos_samples.append((int(x1_anc / downscale), int(y1_anc / downscale), int((x2_anc - x1_anc) / downscale), int((y2_anc - y1_anc) / downscale)))
-							#cls_samples.append(bbox['class'])
+
 							cls_samples.append(img_data['bboxes'][bbox_num]['class'])
 							cls_regr_samples.append([tx,ty,tw,th])
 
