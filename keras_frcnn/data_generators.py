@@ -5,7 +5,7 @@ import copy
 import data_augment
 import threading
 import itertools
-import numba
+#import numba
 
 
 
@@ -22,7 +22,7 @@ def get_img_output_length(width, height):
 
 	return get_output_length(width), get_output_length(height)
 
-@numba.jit
+#@numba.jit
 def union(au, bu):
 	x = min(au[0], bu[0])
 	y = min(au[1], bu[1])
@@ -30,7 +30,7 @@ def union(au, bu):
 	h = max(au[3], bu[3]) - y
 	return x, y, w, h
 
-@numba.jit
+#@numba.jit
 def intersection(ai, bi):
 	x = max(ai[0], bi[0])
 	y = max(ai[1], bi[1])
@@ -40,7 +40,7 @@ def intersection(ai, bi):
 		return 0, 0, 0, 0
 	return x, y, w, h
 
-@numba.jit
+#@numba.jit
 def iou(a, b):
 	# a and b should be (x1,y1,x2,y2)
 	assert a[0] < a[2]
@@ -162,33 +162,38 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 					# bbox_type indicates whether an anchor should be a target 
 					bbox_type = 'neg'
 
+					# this is the best IOU for the (x,y) coord and the current anchor
+					# note that this is different from the best IOU for a GT bbox
+					best_iou_for_loc = 0.0
+
 					for bbox_num in xrange(num_bboxes):
 						
 						# get IOU of the current GT box and the current anchor box
 						curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]], [x1_anc, y1_anc, x2_anc, y2_anc])
+						# calculate the regression targets if they will be needed
+						if curr_iou > best_iou_for_bbox[bbox_num] or curr_iou > 0.5:
+							tx = (gta[bbox_num, 0] - x1_anc) / (x2_anc - x1_anc)
+							ty = (gta[bbox_num, 2] - y1_anc) / (y2_anc - y1_anc)
+							tw = np.log((gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
+							th = np.log((gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2_anc - y1_anc))
 						
 						if img_data['bboxes'][bbox_num]['class'] != 'bg':
+
 							# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
 							if curr_iou > best_iou_for_bbox[bbox_num]:
-								# calculate the regression targets
-
-								tx = (gta[bbox_num, 0] - x1_anc) / (x2_anc - x1_anc)
-								ty = (gta[bbox_num, 2] - y1_anc) / (y2_anc - y1_anc)
-								tw = np.log((gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
-								th = np.log((gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2_anc - y1_anc))
-													
-
 								best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
 								best_iou_for_bbox[bbox_num] = curr_iou
 								best_x_for_bbox[bbox_num] = [x1_anc, x2_anc, y1_anc, y2_anc]
 								best_dx_for_bbox[bbox_num] = [tx, ty, tw, th]
 
-								if curr_iou > 0.7 and ( bbox_num==0 or curr_iou > np.max(best_iou_for_bbox[0:bbox_num]) ):
-									# there may be multiple overlapping bboxes here
-									bbox_type = 'pos'
-									num_anchors_for_bbox[bbox_num] += 1
+							# we set the anchor to positive if the IOU is >0.7 (it does not matter if there was another better box, it just indicates overlap)
+							if curr_iou > 0.7:
+								bbox_type = 'pos'
+								num_anchors_for_bbox[bbox_num] += 1
+								# we update the regression layer target if this IOU is the best for the current (x,y) and anchor position
+								if curr_iou > best_iou_for_loc:
+									best_iou_for_loc = curr_iou
 									best_regr = (tx, ty, tw, th)
-
 
 							# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
 							if 0.3 < curr_iou < 0.7:
@@ -197,19 +202,18 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 									bbox_type = 'neutral'
 
 
-						# samples for classification network
+						# we also make a list of anchor boxes that can be used as positive or negative targets for the classification network
 						if curr_iou < 0.1:
-							# negative sample
+							# negative sample, we dont store this since it's probably very 'easy'
 							pass
 						elif curr_iou < 0.5:
-							# hard neg sample
+							# sample which partially overlaps a GT box. We store this since we expect it to be a rather difficult background sample
 							neg_samples.append((int(x1_anc / downscale), int(y1_anc / downscale),
 												int((x2_anc - x1_anc) / downscale),
 												int((y2_anc - y1_anc) / downscale)))
 						else:
-							# pos sample
+							# A positive sample, there is sufficient overlap
 							pos_samples.append((int(x1_anc / downscale), int(y1_anc / downscale), int((x2_anc - x1_anc) / downscale), int((y2_anc - y1_anc) / downscale)))
-
 							cls_samples.append(img_data['bboxes'][bbox_num]['class'])
 							cls_regr_samples.append([tx,ty,tw,th])
 
@@ -230,8 +234,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	#check that there is at least one labeled region in the image
 	if len(pos_samples) == 0:
 		return None, None, None, None, None
-		
-		
+
+	# we ensure that every bbox has at least one positive RPN region
 	for idx in xrange(num_anchors_for_bbox.shape[0]):
 		if num_anchors_for_bbox[idx] == 0:
 			# no box with an IOU greater than zero ...
@@ -264,6 +268,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	cls_samples = np.array(cls_samples)
 	cls_regr_samples = np.array(cls_regr_samples)
 
+	# randomly sample some positive and negative ROIs from the list
 	target_pos_samples = C.num_rois / 2
 
 	if pos_samples.shape[0] > target_pos_samples:
@@ -300,6 +305,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	y_class_regr = np.expand_dims(y_class_regr, axis=0)
 
 	num_pos = len(pos_locs[0])
+
+	# one issue is that the RPN has many more negative than positive regions, so we turn off some of the negative regions
 
 	if len(pos_locs[0]) > 128:
 		val_locs = random.sample(range(len(pos_locs[0])), len(pos_locs[0]) - 128)
