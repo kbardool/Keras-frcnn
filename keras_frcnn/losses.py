@@ -35,6 +35,4 @@ def class_loss_regr(num_rois):
 
 
 def class_loss_cls(y_true, y_pred):
-
 	return lambda_cls_class * categorical_crossentropy(y_true, y_pred)
-
