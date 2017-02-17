@@ -287,8 +287,9 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	x_rois = np.expand_dims(np.concatenate([valid_pos_samples, valid_neg_samples]), axis=0)
 	
 	y_class_num = np.zeros((x_rois.shape[1], len(class_mapping)))
-	# regr has 8 values: 4 for on/off, 4 for w,y,w,h
-	y_class_regr = np.zeros((x_rois.shape[1], 2*4))
+	# regr has 8 * num_classes values: 4 for on/off, 4 for w,y,w,h for each class
+	num_non_bg_classes = len(class_mapping)-1
+	y_class_regr = np.zeros((x_rois.shape[1], 2*4*num_non_bg_classes))
 
 	for i in xrange(x_rois.shape[1]):
 		if i < valid_cls_samples.shape[0]:
@@ -298,8 +299,9 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 			y_class_num[i, -1] = 1
 		# NB: we only y_class_regr set to positive here if the sample is not from the bg class
 		if y_class_num[i, -1] != 1:
-			y_class_regr[i, :4] = 1 # set value to 1 if the sample is positive
-			y_class_regr[i,4:] = valid_regr_samples[i,:]
+			class_num = np.argmax(y_class_num[i,:])
+			y_class_regr[i, 4*class_num:4*class_num+4] = 1 # set value to 1 if the sample is positive
+			y_class_regr[i,num_non_bg_classes*4+4*class_num:num_non_bg_classes*4+4*class_num+4] = valid_regr_samples[i,:]
 
 	y_class_num = np.expand_dims(y_class_num, axis=0)
 	y_class_regr = np.expand_dims(y_class_regr, axis=0)

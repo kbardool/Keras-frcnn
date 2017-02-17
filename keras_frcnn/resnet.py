@@ -233,16 +233,17 @@ def rpn(base_layers,num_anchors):
 
     return [x_class,x_regr]
 
-def classifier(base_layers,input_rois,num_rois,nb_classes = 21):
+def classifier(base_layers,input_rois,num_rois,nb_classes = 21,trainable=False):
 
     pooling_regions = 7
 
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers,input_rois])
 
-    out = classifier_layers(out_roi_pool)
+    out = classifier_layers(out_roi_pool,trainable=trainable)
     out = TimeDistributed(Flatten(),name='td_flatten')(out)
     out_class = TimeDistributed(Dense(nb_classes, activation='softmax'), name='dense_class_{}'.format(nb_classes))(out)
-    out_regr = TimeDistributed(Dense(4, activation='linear'), name='dense_regr')(out)
+    # note: no regression target for bg class
+    out_regr = TimeDistributed(Dense(4 * (nb_classes-1), activation='linear',init='zero'), name='dense_regr_{}'.format(nb_classes))(out)
 
 
     return [out_class,out_regr]

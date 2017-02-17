@@ -2,6 +2,22 @@ import numpy as np
 import pdb
 import math
 
+def apply_regr(x,y,w,h,tx,ty,tw,th):
+	try:
+		x1 = int(round(tx * w + x))
+		y1 = int(round(ty * h + y))
+		w1 = int(round(math.exp(tw) * (w)))
+		h1 = int(round(math.exp(th) * (h)))
+		return x1,y1,w1,h1
+
+	except ValueError:
+		return x,y,w,h
+	except OverflowError:
+		return x,y,w,h
+	except Exception as e:
+		print(e)
+		return x,y,w,h
+
 def non_max_suppression_fast(boxes, probs, overlapThresh = 0.95):
 	# if there are no boxes, return an empty list
 	if len(boxes) == 0:
@@ -108,11 +124,7 @@ def rpn_to_roi(rpn_layer, regr_layer, C, use_regr = True):
 						h = anchor_y
 
 						if use_regr:
-							x1 = tx * (anchor_x) + x1
-							y1 = ty * (anchor_y) + y1
-
-							w = math.exp(tw) * (anchor_x)
-							h = math.exp(th) * (anchor_y)
+							(x1,y1,w,h) = apply_regr(x1,y1,w,h,tx,ty,tw,th)
 
 						# if w/h is less than 7, we cannot pool
 						w = max(7,w)

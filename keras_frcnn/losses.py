@@ -25,12 +25,12 @@ def rpn_loss_cls(num_anchors):
 	return rpn_loss_cls_fixed_num
 
 
-def class_loss_regr(num_rois):
+def class_loss_regr(num_rois,num_classes):
 	def class_loss_regr_fixed_num(y_true, y_pred):
-		x = y_true[:, :, 4:] - y_pred
+		x = y_true[:, :, 4*num_classes:] - y_pred
 		x_abs = K.abs(x)
 		x_bool = K.lesser_equal(x_abs, 1.0)
-		return lambda_cls_regr * K.sum(y_true[:, :, :4] * (x_bool * (0.5 * x * x) + (1 - x_bool) * (x_abs - 0.5))) / num_rois
+		return lambda_cls_regr * K.sum(y_true[:, :, :4*num_classes] * (x_bool * (0.5 * x * x) + (1 - x_bool) * (x_abs - 0.5))) / num_rois
 	return class_loss_regr_fixed_num
 
 
