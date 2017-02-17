@@ -62,14 +62,14 @@ img_input = Input(shape=input_shape_img)
 roi_input = Input(shape=(C.num_rois, 4))
 
 # define the base network (resnet here, can be VGG, Inception, etc)
-shared_layers = nn.nn_base(img_input)
+shared_layers = nn.nn_base(img_input,trainable=True)
 
 # define the RPN, built on the base layers
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 rpn = nn.rpn(shared_layers,num_anchors)
 
 # the classifier is build on top of the base layers + the ROI pooling layer + extra layers
-classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count))
+classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count),trainable=True)
 
 # define the full model
 model = Model([img_input, roi_input], rpn + classifier)
@@ -81,12 +81,11 @@ except:
 	print('Could not load pretrained model weights')
 
 optimizer = Adam(1e-6)
-model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), losses.class_loss_cls, losses.class_loss_regr(C.num_rois)])
-
+model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), losses.class_loss_cls, losses.class_loss_regr(C.num_rois,len(classes_count)-1)])
 
 nb_epochs = 50
 
-callbacks = [EarlyStopping(monitor='val_loss', patience=2, verbose=0),
+callbacks = [EarlyStopping(monitor='val_loss', patience=20, verbose=0),
 				ModelCheckpoint(C.model_path, monitor='val_loss', save_best_only=True, verbose=0)]
 train_samples_per_epoch = 2000 #len(train_imgs)
 nb_val_samples = 500 # len(val_imgs),
