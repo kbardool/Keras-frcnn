@@ -57,7 +57,7 @@ class RoiPoolingConv(Layer):
             y = rois[0,roi_idx,1]
             w = rois[0,roi_idx,2]
             h = rois[0,roi_idx,3]
-
+            
             row_length = w / self.pool_size
             col_length = h / self.pool_size
 
@@ -71,13 +71,20 @@ class RoiPoolingConv(Layer):
                         y1 = y + jy * col_length
                         y2 = y1 + col_length
 
-                        x1 = K.cast(K.round(x1), 'int32')
-                        x2 = K.cast(K.round(x2), 'int32')
-                        y1 = K.cast(K.round(y1), 'int32')
-                        y2 = K.cast(K.round(y2), 'int32')
+                        x1 = K.cast(x1, 'int32')
+                        x2 = K.cast(x2, 'int32')
+                        y1 = K.cast(y1, 'int32')
+                        y2 = K.cast(y2, 'int32')
+
+                        dx = K.maximum(1,x2-x1)
+                        x2 = x1 + dx
+
+                        dy = K.maximum(1,y2-y1)
+                        y2 = y1 + dy
                         
                         new_shape = [input_shape[0], input_shape[1],
                                      y2 - y1, x2 - x1]
+
                         x_crop = img[:, :, y1:y2, x1:x2]
                         xm = K.reshape(x_crop, new_shape)
                         pooled_val = K.max(xm, axis=(2, 3))
