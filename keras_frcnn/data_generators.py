@@ -3,6 +3,7 @@ import cv2
 import random
 import copy
 import data_augment
+import roi_helpers
 import threading
 import itertools
 #import numba
@@ -120,11 +121,6 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	best_x_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
 	best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
 
-	pos_samples = []
-	cls_samples = []
-	cls_regr_samples = []
-	neg_samples = []
-
 	# get the GT box coordinates, and resize to account for image resizing
 	gta = np.zeros((num_bboxes, 4))
 	for bbox_num, bbox in enumerate(img_data['bboxes']):
@@ -133,8 +129,9 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 		gta[bbox_num, 1] = bbox['x2'] * (resized_width / float(width))
 		gta[bbox_num, 2] = bbox['y1'] * (resized_height / float(height))
 		gta[bbox_num, 3] = bbox['y2'] * (resized_height / float(height))
-
 	
+	# rpn ground truth
+
 	for anchor_size_idx in xrange(len(anchor_sizes)):
 		for anchor_ratio_idx in xrange(n_anchratios):
 			anchor_x = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][0]
@@ -187,7 +184,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 								best_dx_for_bbox[bbox_num] = [tx, ty, tw, th]
 
 							# we set the anchor to positive if the IOU is >0.7 (it does not matter if there was another better box, it just indicates overlap)
-							if curr_iou > 0.7:
+							if curr_iou > C.rpn_max_overlap:
 								bbox_type = 'pos'
 								num_anchors_for_bbox[bbox_num] += 1
 								# we update the regression layer target if this IOU is the best for the current (x,y) and anchor position
@@ -196,26 +193,10 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 									best_regr = (tx, ty, tw, th)
 
 							# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
-							if 0.3 < curr_iou < 0.7:
+							if C.rpn_min_overlap < curr_iou < C.rpn_max_overlap:
 								# gray zone between neg and pos
 								if bbox_type != 'pos':
 									bbox_type = 'neutral'
-
-
-						# we also make a list of anchor boxes that can be used as positive or negative targets for the classification network
-						if curr_iou < 0.1:
-							# negative sample, we dont store this since it's probably very 'easy'
-							pass
-						elif curr_iou < 0.5:
-							# sample which partially overlaps a GT box. We store this since we expect it to be a rather difficult background sample
-							neg_samples.append((int(x1_anc / downscale), int(y1_anc / downscale),
-												int((x2_anc - x1_anc) / downscale),
-												int((y2_anc - y1_anc) / downscale)))
-						else:
-							# A positive sample, there is sufficient overlap
-							pos_samples.append((int(x1_anc / downscale), int(y1_anc / downscale), int((x2_anc - x1_anc) / downscale), int((y2_anc - y1_anc) / downscale)))
-							cls_samples.append(img_data['bboxes'][bbox_num]['class'])
-							cls_regr_samples.append([tx,ty,tw,th])
 
 					# turn on or off outputs depending on IOUs
 					if bbox_type == 'neg':
@@ -230,10 +211,6 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 						start = 4 * anchor_ratio_idx + 4 * n_anchratios * anchor_size_idx
 						y_rpn_regr[jy, ix, start:start+4 ] = best_regr
 
-
-	#check that there is at least one labeled region in the image
-	if len(pos_samples) == 0:
-		return None, None, None, None, None
 
 	# we ensure that every bbox has at least one positive RPN region
 	for idx in xrange(num_anchors_for_bbox.shape[0]):
@@ -262,49 +239,6 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 	pos_locs = np.where(np.logical_and(y_rpn_overlap[0, :, :, :] == 1, y_is_box_valid[0, :, :, :] == 1))
 	neg_locs = np.where(np.logical_and(y_rpn_overlap[0, :, :, :] == 0, y_is_box_valid[0, :, :, :] == 1))
-		
-	pos_samples = np.array(pos_samples)
-	neg_samples = np.array(neg_samples)
-	cls_samples = np.array(cls_samples)
-	cls_regr_samples = np.array(cls_regr_samples)
-
-	# randomly sample some positive and negative ROIs from the list
-	target_pos_samples = C.num_rois / 2
-
-	if pos_samples.shape[0] > target_pos_samples:
-		val_locs = random.sample(range(pos_samples.shape[0]), target_pos_samples)
-		valid_pos_samples = pos_samples[val_locs, :]
-		valid_cls_samples = cls_samples[val_locs]
-		valid_regr_samples = cls_regr_samples[val_locs,:]
-	else:
-		valid_pos_samples = pos_samples
-		valid_cls_samples = cls_samples
-		valid_regr_samples = cls_regr_samples
-
-	val_locs = random.sample(range(neg_samples.shape[0]), C.num_rois - valid_cls_samples.shape[0])
-	valid_neg_samples = neg_samples[val_locs, :]
-
-	x_rois = np.expand_dims(np.concatenate([valid_pos_samples, valid_neg_samples]), axis=0)
-	
-	y_class_num = np.zeros((x_rois.shape[1], len(class_mapping)))
-	# regr has 8 * num_classes values: 4 for on/off, 4 for w,y,w,h for each class
-	num_non_bg_classes = len(class_mapping)-1
-	y_class_regr = np.zeros((x_rois.shape[1], 2*4*num_non_bg_classes))
-
-	for i in xrange(x_rois.shape[1]):
-		if i < valid_cls_samples.shape[0]:
-			class_num = class_mapping[valid_cls_samples[i]]
-			y_class_num[i, class_num] = 1
-		else:
-			y_class_num[i, -1] = 1
-		# NB: we only y_class_regr set to positive here if the sample is not from the bg class
-		if y_class_num[i, -1] != 1:
-			class_num = np.argmax(y_class_num[i,:])
-			y_class_regr[i, 4*class_num:4*class_num+4] = 1 # set value to 1 if the sample is positive
-			y_class_regr[i,num_non_bg_classes*4+4*class_num:num_non_bg_classes*4+4*class_num+4] = valid_regr_samples[i,:]
-
-	y_class_num = np.expand_dims(y_class_num, axis=0)
-	y_class_regr = np.expand_dims(y_class_regr, axis=0)
 
 	num_pos = len(pos_locs[0])
 
@@ -322,6 +256,57 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	y_rpn_cls = np.concatenate([y_is_box_valid, y_rpn_overlap], axis=1)
 	y_rpn_regr = np.concatenate([np.repeat(y_rpn_overlap, 4, axis=1), y_rpn_regr], axis=1)
 
+	# classifier ground truth
+	x_rois = []
+	y_class_num = np.zeros((C.num_rois, len(class_mapping)))
+	# regr has 8 * num_classes values: 4 for on/off, 4 for w,y,w,h for each class
+	num_non_bg_classes = len(class_mapping)-1
+	y_class_regr = np.zeros((C.num_rois, 2*4*num_non_bg_classes))	
+	
+	for i in range(C.num_rois):
+		# generate either a bg sample or a class sample, and select acceptable IOUs
+		if i < C.num_rois / 2:
+			sample_type = 'pos'
+			min_iou = C.classifier_max_overlap
+			max_iou = 1.0
+		else:
+			sample_type = 'neg'
+			min_iou = C.classifier_min_overlap
+			max_iou = C.classifier_max_overlap
+		not_valid_gt = True
+		while not_valid_gt:
+			x = np.random.randint(0,resized_width - 2)
+			y = np.random.randint(0,resized_height - 2)
+			w = np.random.randint(1, resized_width - x - 1)
+			h = np.random.randint(1, resized_height - y - 1)
+			for bbox_num in xrange(num_bboxes):
+				# get IOU of the current GT box and the current anchor box
+				curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]], [x,y,x+w,y+h])
+				if min_iou < curr_iou < max_iou:
+					not_valid_gt = False
+					x_rois.append([int(x/downscale),int(y/downscale),int(w/downscale),int(h/downscale)])
+					if sample_type == 'pos':
+						cls_name = img_data['bboxes'][bbox_num]['class']
+						x1 = x
+						x2 = x + w
+						y1 = y
+						y2 = y + h
+						tx = (gta[bbox_num, 0] - x1) / (x2 - x1)
+						ty = (gta[bbox_num, 2] - y1) / (y2 - y1)
+						tw = np.log((gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2 - x1))
+						th = np.log((gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2 - y1))
+					else:
+						cls_name = 'bg'
+					class_num = class_mapping[cls_name]
+					y_class_num[i, class_num] = 1
+					if class_num != num_non_bg_classes:
+						y_class_regr[i, 4*class_num:4*class_num+4] = 1 # set value to 1 if the sample is positive
+						y_class_regr[i,num_non_bg_classes*4+4*class_num:num_non_bg_classes*4+4*class_num+4] = [tx,ty,tw,th]
+					break
+	x_rois = np.array(x_rois)
+	y_class_num = np.expand_dims(y_class_num, axis=0)
+	y_class_regr = np.expand_dims(y_class_regr, axis=0)
+	x_rois = np.expand_dims(x_rois, axis=0)
 	return x_rois, y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr
 
 
