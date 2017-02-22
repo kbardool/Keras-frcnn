@@ -127,8 +127,8 @@ def rpn_to_roi(rpn_layer, regr_layer, C, use_regr = True):
 							(x1,y1,w,h) = apply_regr(x1,y1,w,h,tx,ty,tw,th)
 
 						# if w/h is less than 7, we cannot pool
-						w = max(7,w)
-						h = max(7,h)
+						w = max(1,w)
+						h = max(1,h)
 
 						x2 = x1 + w
 						y2 = y1 + h
@@ -141,9 +141,9 @@ def rpn_to_roi(rpn_layer, regr_layer, C, use_regr = True):
 						x2 = min(x2,cols-1)
 						y2 = min(y2,rows-1)
 						
-						if x2 - x1 < 7:
+						if x2 - x1 < 1:
 							continue
-						if y2 - y1 < 7:
+						if y2 - y1 < 1:
 							continue
 
 						all_boxes.append((x1,y1,x2,y2))
@@ -155,4 +155,4 @@ def rpn_to_roi(rpn_layer, regr_layer, C, use_regr = True):
 	all_boxes = np.array(all_boxes)
 	all_probs = np.array(all_probs)
 
-	return non_max_suppression_fast(all_boxes,all_probs)[0]
+	return non_max_suppression_fast(all_boxes,all_probs,0.7)[0]
