@@ -274,35 +274,52 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 			min_iou = C.classifier_min_overlap
 			max_iou = C.classifier_max_overlap
 		not_valid_gt = True
+
+		num_attempts = 0
+
 		while not_valid_gt:
-			x = np.random.randint(0,resized_width - 2)
-			y = np.random.randint(0,resized_height - 2)
-			w = np.random.randint(1, resized_width - x - 1)
-			h = np.random.randint(1, resized_height - y - 1)
+			x = np.random.randint(0, (resized_width - 2 * downscale))
+			y = np.random.randint(0, (resized_height - 2 * downscale))
+			w = np.random.randint(downscale/2 + 1, (resized_width - x - downscale))
+			h = np.random.randint(downscale/2 + 1, (resized_height - y - downscale))
+
+			largest_iou = 0.0
+			bbox_idx = -1
+
+			num_attempts += 1
+			if num_attempts > 10000:
+				min_iou = 0.0
+				max_iou = 1.0
+
 			for bbox_num in xrange(num_bboxes):
 				# get IOU of the current GT box and the current anchor box
 				curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]], [x,y,x+w,y+h])
-				if min_iou < curr_iou < max_iou:
-					not_valid_gt = False
-					x_rois.append([int(x/downscale),int(y/downscale),int(w/downscale),int(h/downscale)])
-					if sample_type == 'pos':
-						cls_name = img_data['bboxes'][bbox_num]['class']
-						x1 = x
-						x2 = x + w
-						y1 = y
-						y2 = y + h
-						tx = (gta[bbox_num, 0] - x1) / (x2 - x1)
-						ty = (gta[bbox_num, 2] - y1) / (y2 - y1)
-						tw = np.log((gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2 - x1))
-						th = np.log((gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2 - y1))
-					else:
-						cls_name = 'bg'
-					class_num = class_mapping[cls_name]
-					y_class_num[i, class_num] = 1
-					if class_num != num_non_bg_classes:
-						y_class_regr[i, 4*class_num:4*class_num+4] = 1 # set value to 1 if the sample is positive
-						y_class_regr[i,num_non_bg_classes*4+4*class_num:num_non_bg_classes*4+4*class_num+4] = [tx,ty,tw,th]
-					break
+				if curr_iou > largest_iou:
+					largest_iou = curr_iou
+					bbox_idx = bbox_num
+
+			if min_iou < largest_iou < max_iou:
+				not_valid_gt = False
+				x_rois.append([int(round(x/downscale)),int(round(y/downscale)),int(round(w/downscale)),int(round(h/downscale))])
+				if sample_type == 'pos':
+					cls_name = img_data['bboxes'][bbox_idx]['class']
+					x1 = x
+					x2 = x + w
+					y1 = y
+					y2 = y + h
+					tx = (gta[bbox_idx, 0] - x1) / (x2 - x1)
+					ty = (gta[bbox_idx, 2] - y1) / (y2 - y1)
+					tw = np.log((gta[bbox_idx, 1] - gta[bbox_idx, 0]) / (x2 - x1))
+					th = np.log((gta[bbox_idx, 3] - gta[bbox_idx, 2]) / (y2 - y1))
+				else:
+					cls_name = 'bg'
+				class_num = class_mapping[cls_name]
+				y_class_num[i, class_num] = 1
+				if class_num != num_non_bg_classes:
+					y_class_regr[i, 4*class_num:4*class_num+4] = 1 # set value to 1 if the sample is positive
+					y_class_regr[i,num_non_bg_classes*4+4*class_num:num_non_bg_classes*4+4*class_num+4] = [tx,ty,tw,th]
+				break
+
 	x_rois = np.array(x_rois)
 	y_class_num = np.expand_dims(y_class_num, axis=0)
 	y_class_regr = np.expand_dims(y_class_regr, axis=0)
@@ -349,45 +366,48 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, mode='train'):
 			random.shuffle(all_img_data)
 
 		for img_data in all_img_data:
+			try:
 
-			if C.balanced_classes and sample_selector.skip_sample_for_balanced_class(img_data):
+				if C.balanced_classes and sample_selector.skip_sample_for_balanced_class(img_data):
+					continue
+
+				# read in image, and optionally add augmentation
+
+				if mode=='train':
+					img_data_aug, x_img = data_augment.augment(img_data, C, augment=True)
+				else:
+					img_data_aug, x_img = data_augment.augment(img_data, C, augment=False)
+
+				(width, height) = (img_data_aug['width'], img_data_aug['height'])
+				(rows, cols, _) = x_img.shape
+
+				assert cols == width
+				assert rows == height
+
+				# get image dimensions for resizing
+				(resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
+
+				# resize the image so that smalles side is length = 600px
+				x_img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
+
+				# calculate the output map size based on the network architecture
+				(output_width, output_height) = get_img_output_length(resized_width, resized_height)
+
+				x_rois, y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr = calcY(C, class_mapping, img_data_aug, width, height, resized_width, resized_height)
+				if x_rois is None:
+					continue
+
+				x_img = np.transpose(x_img, (2, 0, 1))
+				x_img = np.expand_dims(x_img, axis=0).astype('float32')
+
+				# Zero-center by mean pixel
+				x_img[:, 0, :, :] -= 103.939
+				x_img[:, 1, :, :] -= 116.779
+				x_img[:, 2, :, :] -= 123.68
+
+				yield [x_img, x_rois], [y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr]
+
+
+			except Exception as e:
+				print(e)
 				continue
-
-			# read in image, and optionally add augmentation
-
-			if mode=='train':
-				img_data_aug, x_img = data_augment.augment(img_data, C, augment=True)
-			else:
-				img_data_aug, x_img = data_augment.augment(img_data, C, augment=False)
-
-			(width, height) = (img_data_aug['width'], img_data_aug['height'])
-			(rows, cols, _) = x_img.shape
-
-			assert cols == width
-			assert rows == height
-
-			# get image dimensions for resizing
-			(resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
-
-			# resize the image so that smalles side is length = 600px
-			x_img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
-
-			# calculate the output map size based on the network architecture
-			(output_width, output_height) = get_img_output_length(resized_width, resized_height)
-
-			x_rois, y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr = calcY(C, class_mapping, img_data_aug, width, height, resized_width, resized_height)
-			if x_rois is None:
-				continue
-
-			x_img = np.transpose(x_img, (2, 0, 1))
-			x_img = np.expand_dims(x_img, axis=0).astype('float32')
-
-			# Zero-center by mean pixel
-			x_img[:, 0, :, :] -= 103.939
-			x_img[:, 1, :, :] -= 116.779
-			x_img[:, 2, :, :] -= 123.68
-
-			yield [x_img, x_rois], [y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr]
-
-
-
