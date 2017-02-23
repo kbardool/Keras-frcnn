@@ -117,9 +117,9 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 	num_anchors_for_bbox = np.zeros(num_bboxes).astype(int)
 	best_anchor_for_bbox = -1*np.ones((num_bboxes, 4)).astype(int)
-	best_iou_for_bbox = np.zeros(num_bboxes)
+	best_iou_for_bbox = np.zeros(num_bboxes).astype(np.float32)
 	best_x_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
-	best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
+	best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(np.float32)
 
 	# get the GT box coordinates, and resize to account for image resizing
 	gta = np.zeros((num_bboxes, 4))
@@ -180,8 +180,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 							if curr_iou > best_iou_for_bbox[bbox_num]:
 								best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
 								best_iou_for_bbox[bbox_num] = curr_iou
-								best_x_for_bbox[bbox_num] = [x1_anc, x2_anc, y1_anc, y2_anc]
-								best_dx_for_bbox[bbox_num] = [tx, ty, tw, th]
+								best_x_for_bbox[bbox_num,:] = [x1_anc, x2_anc, y1_anc, y2_anc]
+								best_dx_for_bbox[bbox_num,:] = [tx, ty, tw, th]
 
 							# we set the anchor to positive if the IOU is >0.7 (it does not matter if there was another better box, it just indicates overlap)
 							if curr_iou > C.rpn_max_overlap:
@@ -208,8 +208,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 					else:
 						y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
 						y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-						start = 4 * anchor_ratio_idx + 4 * n_anchratios * anchor_size_idx
-						y_rpn_regr[jy, ix, start:start+4 ] = best_regr
+						start = 4 * (anchor_ratio_idx + n_anchratios * anchor_size_idx)
+						y_rpn_regr[jy, ix, start:start+4] = best_regr
 
 
 	# we ensure that every bbox has at least one positive RPN region
@@ -242,7 +242,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 	num_pos = len(pos_locs[0])
 
-	# one issue is that the RPN has many more negative than positive regions, so we turn off some of the negative regions
+	# one issue is that the RPN has many more negative than positive regions, so we turn off some of the negative
+	# regions. We also limit it to 256 regions.
 
 	if len(pos_locs[0]) > 128:
 		val_locs = random.sample(range(len(pos_locs[0])), len(pos_locs[0]) - 128)
@@ -255,7 +256,6 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 	y_rpn_cls = np.concatenate([y_is_box_valid, y_rpn_overlap], axis=1)
 	y_rpn_regr = np.concatenate([np.repeat(y_rpn_overlap, 4, axis=1), y_rpn_regr], axis=1)
-
 	# classifier ground truth
 	x_rois = []
 	y_class_num = np.zeros((C.num_rois, len(class_mapping)))
@@ -300,7 +300,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 			if min_iou < largest_iou < max_iou:
 				not_valid_gt = False
-				x_rois.append([int(round(x/downscale)),int(round(y/downscale)),int(round(w/downscale)),int(round(h/downscale))])
+				x_rois.append([int(round(x/downscale)), int(round(y/downscale)), int(round(w/downscale)), int(round(h/downscale))])
 				if sample_type == 'pos':
 					cls_name = img_data['bboxes'][bbox_idx]['class']
 					x1 = x
@@ -313,6 +313,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 					th = np.log((gta[bbox_idx, 3] - gta[bbox_idx, 2]) / (y2 - y1))
 				else:
 					cls_name = 'bg'
+
 				class_num = class_mapping[cls_name]
 				y_class_num[i, class_num] = 1
 				if class_num != num_non_bg_classes:
