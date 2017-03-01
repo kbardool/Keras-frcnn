@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import copy
 
+
 def augment(img_data, config, augment=True):
 	assert 'filepath' in img_data
 	assert 'bboxes' in img_data
@@ -11,6 +12,9 @@ def augment(img_data, config, augment=True):
 	img_data_aug = copy.deepcopy(img_data)
 
 	img = cv2.imread(img_data_aug['filepath'])
+	# BGR -> RGB
+	img = img[:,:,(2,1,0)]
+
 
 	if augment:
 		rows, cols = img.shape[:2]
@@ -30,7 +34,6 @@ def augment(img_data, config, augment=True):
 				y2 = bbox['y2']
 				bbox['y2'] = rows - y1
 				bbox['y1'] = rows - y2
-
 
 		if config.random_rotate:
 			M = cv2.getRotationMatrix2D((cols/2, rows/2), np.random.randint(-config.random_rotate_scale, config.random_rotate_scale), 1)
