@@ -27,6 +27,9 @@ class Config:
 
 		self.balanced_classes = True
 
+		# scaling the stdev
+		self.std_scaling = 4.0
+
 		# overlaps for RPN
 		self.rpn_min_overlap = 0.3
 		self.rpn_max_overlap = 0.7
@@ -40,4 +43,6 @@ class Config:
 			self.base_net_weights = 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
 		else:
 			self.base_net_weights = 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
+
 		self.model_path = 'model_frcnn.hdf5'
+
