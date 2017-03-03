@@ -75,20 +75,21 @@ def get_new_img_size(width, height, img_min_side=600):
 class SampleSelector:
 	def __init__(self, class_count):
 		# ignore classes that have zero samples
-		self.classes = [b for b in class_count.keys() if class_count[b] != 0]
+		self.classes = [b for b in class_count.keys() if class_count[b] > 0]
 		self.class_cycle = itertools.cycle(self.classes)
+		self.curr_class = self.class_cycle.next()
 
 	def skip_sample_for_balanced_class(self, img_data):
 
-		curr_class = self.class_cycle.next()
 		class_in_img = False
 
 		for bbox in img_data['bboxes']:
 
 			cls_name = bbox['class']
 
-			if cls_name == curr_class:
+			if cls_name == self.curr_class:
 				class_in_img = True
+				self.curr_class = self.class_cycle.next()
 				break
 
 		if class_in_img:
@@ -407,11 +408,10 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, backend, mode='tr
 
 				# calculate the output map size based on the network architecture
 				(output_width, output_height) = get_img_output_length(resized_width, resized_height)
-
-				x_rois, y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr = calcY(C, class_mapping, img_data_aug, width, height, resized_width, resized_height)
-				if x_rois is None:
+				try:
+					x_rois, y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr = calcY(C, class_mapping, img_data_aug, width, height, resized_width, resized_height)
+				except:
 					continue
-
 				# Zero-center by mean pixel
 				x_img = x_img.astype(np.float32)
 				x_img[:, :, 0] -= 103.939
@@ -423,6 +423,8 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, backend, mode='tr
 
 				if backend == 'tf':
 					x_img = np.transpose(x_img, (0, 2, 3, 1))
+					y_rpn_cls = np.transpose(y_rpn_cls, (0, 2, 3, 1))
+					y_rpn_regr = np.transpose(y_rpn_regr, (0, 2, 3, 1))
 
 				yield [np.copy(x_img), np.copy(x_rois)], [np.copy(y_rpn_cls), np.copy(C.std_scaling*y_rpn_regr), np.copy(y_class_num), np.copy(C.std_scaling*y_class_regr)]
 

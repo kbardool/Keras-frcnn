@@ -11,6 +11,7 @@ from keras.layers import merge, Input
 from keras.layers import Dense, Activation, Flatten
 from keras.layers import Convolution2D, MaxPooling2D, ZeroPadding2D, AveragePooling2D, TimeDistributed
 from keras import backend as K
+from keras.layers.core import Reshape
 
 from keras_frcnn.RoiPoolingConv import RoiPoolingConv
 from keras_frcnn.FixedBatchNormalization import FixedBatchNormalization
@@ -169,7 +170,7 @@ def conv_block_td(input_tensor, kernel_size, filters, stage, block, strides=(2, 
     x = Activation('relu')(x)
     return x
 
-def nn_base(input_tensor=None, trainable = False):
+def nn_base(input_tensor=None, trainable=False):
 
     # Determine proper input shape
     if K.image_dim_ordering() == 'th':
@@ -193,7 +194,7 @@ def nn_base(input_tensor=None, trainable = False):
     x = ZeroPadding2D((3, 3))(img_input)
 
     x = Convolution2D(64, 7, 7, subsample=(2, 2), name='conv1', trainable = trainable)(x)
-    x = FixedBatchNormalization(trainable=False,axis=bn_axis, name='bn_conv1')(x)
+    x = FixedBatchNormalization(trainable=False, axis=bn_axis, name='bn_conv1')(x)
     x = Activation('relu')(x)
     x = MaxPooling2D((3, 3), strides=(2, 2))(x)
 
@@ -218,8 +219,7 @@ def nn_base(input_tensor=None, trainable = False):
 def classifier_layers(x, trainable=False):
     x = conv_block_td(x, 3, [512, 512, 2048], stage=5, block='a', strides=(1, 1), trainable=trainable)
     x = identity_block_td(x, 3, [512, 512, 2048], stage=5, block='b', trainable=trainable)
-    x = identity_block_td(x, 3, [512, 512, 2048], stage=5, block='c', trainable=True)
-
+    x = identity_block_td(x, 3, [512, 512, 2048], stage=5, block='c', trainable=trainable)
     x = TimeDistributed(AveragePooling2D((7, 7)), name='avg_pool')(x)
 
     return x
@@ -228,22 +228,22 @@ def rpn(base_layers,num_anchors):
 
     x = Convolution2D(512, 3, 3, border_mode = 'same', activation='relu', init='normal',name='rpn_conv1')(base_layers)
 
-    x_class = Convolution2D(num_anchors, 1, 1, activation='sigmoid', init='normal',name='rpn_out_class')(x)
-    x_regr = Convolution2D(num_anchors * 4, 1, 1, activation='linear', init='normal',name='rpn_out_regr')(x)
+    x_class = Convolution2D(num_anchors, 1, 1, activation='sigmoid', init='zero',name='rpn_out_class')(x)
+    x_regr = Convolution2D(num_anchors * 4, 1, 1, activation='linear', init='zero',name='rpn_out_regress')(x)
 
-    return [x_class,x_regr]
+    return [x_class, x_regr]
 
-def classifier(base_layers,input_rois,num_rois,nb_classes = 21,trainable=False):
+def classifier(base_layers, input_rois, num_rois, nb_classes = 21, trainable=False):
 
     pooling_regions = 7
-
     out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers,input_rois])
+    out = classifier_layers(out_roi_pool, trainable=trainable)
+    out = TimeDistributed(Flatten(), name='td_flatten')(out)
+    if K.image_dim_ordering() == 'tf':
+        out = Reshape((num_rois,2048))(out)
 
-    out = classifier_layers(out_roi_pool,trainable=trainable)
-    out = TimeDistributed(Flatten(),name='td_flatten')(out)
-    out_class = TimeDistributed(Dense(nb_classes, activation='softmax'), name='dense_class_{}'.format(nb_classes))(out)
+    out_class = TimeDistributed(Dense(nb_classes, activation='softmax', init='zero'), name='dense_class_{}'.format(nb_classes))(out)
     # note: no regression target for bg class
-    out_regr = TimeDistributed(Dense(4 * (nb_classes-1), activation='linear',init='zero'), name='dense_regr_{}'.format(nb_classes))(out)
+    out_regr = TimeDistributed(Dense(4 * (nb_classes-1), activation='linear', init='zero'), name='dense_regress_{}'.format(nb_classes))(out)
 
-
-    return [out_class,out_regr]
+    return [out_class, out_regr]
