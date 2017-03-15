@@ -7,7 +7,7 @@ from keras_frcnn import config
 sys.setrecursionlimit(40000)
 
 C = config.Config()
-C.num_rois = 8
+C.num_rois = 2
 
 C.use_vertical_flips = True
 
@@ -78,7 +78,10 @@ try:
 	print 'loading weights from ', C.base_net_weights
 	model.load_weights(C.base_net_weights,by_name=True)
 except:
-	print('Could not load pretrained model weights')
+	print('Could not load pretrained model weights. Weights can be found at {} and {}'.format(
+		'https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_th_dim_ordering_th_kernels_notop.h5',
+        'https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
+        ))
 
 optimizer = Adam(1e-5, decay=0.0)
 model.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors), losses.class_loss_cls, losses.class_loss_regr(C.num_rois,len(classes_count)-1)], metrics={'dense_class_{}_loss'.format(len(classes_count)): 'accuracy'})
