@@ -8,7 +8,7 @@ import threading
 import itertools
 #import numba
 
-
+random.seed(0)
 
 def get_img_output_length(width, height):
 	def get_output_length(input_length):
@@ -251,16 +251,17 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 
 	# one issue is that the RPN has many more negative than positive regions, so we turn off some of the negative
 	# regions. We also limit it to 256 regions.
-
-	if len(pos_locs[0]) > 128:
-		val_locs = random.sample(range(len(pos_locs[0])), len(pos_locs[0]) - 128)
+	num_regions = 256
+	'''
+	if len(pos_locs[0]) > num_regions/2:
+		val_locs = random.sample(range(len(pos_locs[0])), len(pos_locs[0]) - num_regions/2)
 		y_is_box_valid[0, pos_locs[0][val_locs], pos_locs[1][val_locs], pos_locs[2][val_locs]] = 0
-		num_pos = 128
+		num_pos = num_regions/2
 
-	if len(neg_locs[0]) + num_pos > 256:
-		val_locs = random.sample(range(len(neg_locs[0])), len(neg_locs[0]) + num_pos - 256)
+	if len(neg_locs[0]) + num_pos > num_regions:
+		val_locs = random.sample(range(len(neg_locs[0])), len(neg_locs[0]) - num_pos)
 		y_is_box_valid[0, neg_locs[0][val_locs], neg_locs[1][val_locs], neg_locs[2][val_locs]] = 0
-
+	'''
 	y_rpn_cls = np.concatenate([y_is_box_valid, y_rpn_overlap], axis=1)
 	y_rpn_regr = np.concatenate([np.repeat(y_rpn_overlap, 4, axis=1), y_rpn_regr], axis=1)
 	# classifier ground truth
@@ -340,7 +341,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	y_class_num = np.expand_dims(y_class_num, axis=0)
 	y_class_regr = np.expand_dims(y_class_regr, axis=0)
 	x_rois = np.expand_dims(x_rois, axis=0)
-	return x_rois, y_rpn_cls, y_rpn_regr, y_class_num, y_class_regr
+	return np.copy(x_rois), np.copy(y_rpn_cls), np.copy(y_rpn_regr), np.copy(y_class_num), np.copy(y_class_regr)
 
 
 class threadsafe_iter:
@@ -370,6 +371,8 @@ def threadsafe_generator(f):
 def get_anchor_gt(all_img_data, class_mapping, class_count, C, backend, mode='train'):
 	downscale = float(C.rpn_stride)
 
+	all_img_data = sorted(all_img_data)
+
 	anchor_sizes = C.anchor_box_scales
 	anchor_ratios = C.anchor_box_ratios
 
@@ -378,7 +381,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, backend, mode='tr
 	sample_selector = SampleSelector(class_count)
 
 	while True:
-		if mode=='train':
+		if mode =='train':
 			random.shuffle(all_img_data)
 
 		for img_data in all_img_data:
@@ -389,7 +392,7 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, backend, mode='tr
 
 				# read in image, and optionally add augmentation
 
-				if mode=='train':
+				if mode == 'train':
 					img_data_aug, x_img = data_augment.augment(img_data, C, augment=True)
 				else:
 					img_data_aug, x_img = data_augment.augment(img_data, C, augment=False)
@@ -421,13 +424,15 @@ def get_anchor_gt(all_img_data, class_mapping, class_count, C, backend, mode='tr
 				x_img = np.transpose(x_img, (2, 0, 1))
 				x_img = np.expand_dims(x_img, axis=0)
 
+				y_rpn_regr[:,y_rpn_regr.shape[1]/2:,:,:] *= C.std_scaling
+				y_class_regr[:,y_class_regr.shape[1]/2:,:] *= C.std_scaling
+
 				if backend == 'tf':
 					x_img = np.transpose(x_img, (0, 2, 3, 1))
 					y_rpn_cls = np.transpose(y_rpn_cls, (0, 2, 3, 1))
 					y_rpn_regr = np.transpose(y_rpn_regr, (0, 2, 3, 1))
 
-				yield [np.copy(x_img), np.copy(x_rois)], [np.copy(y_rpn_cls), np.copy(C.std_scaling*y_rpn_regr), np.copy(y_class_num), np.copy(C.std_scaling*y_class_regr)]
-
+				yield [np.copy(x_img), np.copy(x_rois)], [np.copy(y_rpn_cls), np.copy(y_rpn_regr), np.copy(y_class_num), np.copy(y_class_regr)]
 
 			except Exception as e:
 				print(e)

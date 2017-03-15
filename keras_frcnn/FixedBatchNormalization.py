@@ -1,5 +1,5 @@
 from keras.engine import Layer, InputSpec
-from keras import initializations, regularizers
+from keras import initializers, regularizers
 from keras import backend as K
 
 
@@ -9,8 +9,8 @@ class FixedBatchNormalization(Layer):
                  weights=None, beta_init='zero', gamma_init='one',
                  gamma_regularizer=None, beta_regularizer=None, **kwargs):
         self.supports_masking = True
-        self.beta_init = initializations.get(beta_init)
-        self.gamma_init = initializations.get(gamma_init)
+        self.beta_init = initializers.get(beta_init)
+        self.gamma_init = initializers.get(gamma_init)
         self.epsilon = epsilon
         self.axis = axis
         self.gamma_regularizer = regularizers.get(gamma_regularizer)
@@ -38,7 +38,6 @@ class FixedBatchNormalization(Layer):
         self.running_std = self.add_weight(shape, initializer='one',
                                            name='{}_running_std'.format(self.name),
                                            trainable=False)
-
         if self.initial_weights is not None:
             self.set_weights(self.initial_weights)
             del self.initial_weights

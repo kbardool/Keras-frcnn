@@ -102,34 +102,41 @@ def non_max_suppression_fast(boxes, probs, overlapThresh=0.95):
 	probs = probs[pick]
 	return boxes, probs
 
-def rpn_to_roi(rpn_layer, regr_layer, C, use_regr = True):
+def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr = True):
 
 	regr_layer = regr_layer / C.std_scaling
 
 	anchor_sizes = C.anchor_box_scales
 	anchor_ratios = C.anchor_box_ratios
-	assert len(anchor_sizes) * len(anchor_ratios) == rpn_layer.shape[1]
-	assert len(anchor_sizes) * len(anchor_ratios) * 4 == regr_layer.shape[1]
 
 	assert rpn_layer.shape[0] == 1
 
 	all_boxes = []
 	all_probs = []
-
-	(rows,cols) = rpn_layer.shape[2:]
+	if dim_ordering == 'th':
+		(rows,cols) = rpn_layer.shape[2:]
+	elif dim_ordering == 'tf':
+		(rows, cols) = rpn_layer.shape[1:3]
 	curr_layer = 0
+
 	for anchor_size in anchor_sizes:
 		for anchor_ratio in anchor_ratios:
+
 			anchor_x = (anchor_size * anchor_ratio[0])/C.rpn_stride
 			anchor_y = (anchor_size * anchor_ratio[1])/C.rpn_stride
+			if dim_ordering == 'th':
+				rpn = rpn_layer[0, curr_layer, :, :]
+				regr = regr_layer[0, 4 * curr_layer:4 * curr_layer + 4, :, :]
+			else:
+				rpn = rpn_layer[0, :, :, curr_layer]
+				regr = np.copy(regr_layer[0, :, :, 4 * curr_layer:4 * curr_layer + 4])
+				regr = np.transpose(regr,(2,0,1))
 
-			rpn = rpn_layer[0,curr_layer,:,:]
-			regr = regr_layer[0,4 * curr_layer:4 * curr_layer + 4,:,:]
-
+			curr_layer += 1
 			for jy in xrange(rows):
 				for ix in xrange(cols):
-					if rpn[jy,ix] > 0.0:
-						(tx, ty, tw, th) = regr[:,jy,ix]
+					if rpn[jy,ix] > 0.50:
+						(tx, ty, tw, th) = regr[:, jy, ix]
 
 						x1 = ix - anchor_x/2
 						y1 = jy - anchor_y/2
@@ -140,7 +147,6 @@ def rpn_to_roi(rpn_layer, regr_layer, C, use_regr = True):
 						if use_regr:
 							(x1, y1, w, h) = apply_regr(x1, y1, w, h, tx, ty, tw, th)
 
-						# if w/h is less than 7, we cannot pool
 						w = max(4, w)
 						h = max(4, h)
 
@@ -161,12 +167,8 @@ def rpn_to_roi(rpn_layer, regr_layer, C, use_regr = True):
 							continue
 
 						all_boxes.append((x1, y1, x2, y2))
-						
 						all_probs.append(rpn[jy, ix])
-
-			curr_layer += 1
 
 	all_boxes = np.array(all_boxes)
 	all_probs = np.array(all_probs)
-
 	return non_max_suppression_fast(all_boxes,all_probs,0.7)[0]

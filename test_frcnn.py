@@ -28,7 +28,7 @@ def format_img(img):
 		f = img_min_side/height
 		new_width = int(f * width)
 		new_height = int(img_min_side)
-	img = cv2.resize(img,(new_width,new_height),interpolation = cv2.INTER_CUBIC)
+	img = cv2.resize(img,(new_width,new_height), interpolation=cv2.INTER_CUBIC)
 	img = img[:,:,(2,1,0)]
 	img = np.transpose(img,(2,0,1)).astype(np.float32)
 	img = np.expand_dims(img, axis=0)
@@ -46,7 +46,7 @@ if 'bg' not in class_mapping:
 class_mapping = {v: k for k, v in class_mapping.iteritems()}
 
 class_to_color = {class_mapping[v]:np.random.randint(0,255,3) for v in class_mapping}
-num_rois = 4
+num_rois = 16
 
 import keras_frcnn.resnet as nn
 from keras import backend as K
@@ -84,6 +84,7 @@ model_rpn = Model(img_input,rpn + [shared_layers])
 model_classifier = Model([feature_map_input,roi_input],classifier)
 
 weights_path = 'model_frcnn.hdf5'
+
 model_rpn.load_weights(weights_path, by_name=True)
 model_classifier.load_weights(weights_path, by_name=True)
 
@@ -108,15 +109,18 @@ for idx,img_name in enumerate(sorted(os.listdir(img_path))):
 	X = format_img(img)
 
 	img_scaled = np.transpose(X[0,(2,1,0),:,:],(1,2,0)).copy()
-	img_scaled[:, :, 0] += 124
-	img_scaled[:, :, 1] += 117
-	img_scaled[:, :, 2] += 104
+	img_scaled[:, :, 0] += 123.68
+	img_scaled[:, :, 1] += 116.779
+	img_scaled[:, :, 2] += 103.939
+	
 	img_scaled = img_scaled.astype(np.uint8)
 
+	if K.image_dim_ordering() == 'tf':
+		X = np.transpose(X,(0,2,3,1))
 	# get the feature maps and output from the RPN
-	[Y1,Y2,F] = model_rpn.predict(X)
+	[Y1, Y2, F] = model_rpn.predict(X)
 
-	R = roi_helpers.rpn_to_roi(Y1,Y2,C)
+	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering())
 
 	# convert from (x1,y1,x2,y2) to (x,y,w,h)
 	R[:,2] = R[:,2] - R[:,0]
@@ -144,7 +148,7 @@ for idx,img_name in enumerate(sorted(os.listdir(img_path))):
 
 		for ii in range(P_cls.shape[1]):
 
-			if np.max(P_cls[0,ii,:]) < 0.1 or np.argmax(P_cls[0,ii,:]) == (P_cls.shape[2] - 1):
+			if np.max(P_cls[0,ii,:]) < 0.5 or np.argmax(P_cls[0,ii,:]) == (P_cls.shape[2] - 1):
 				continue
 
 			cls_name = class_mapping[np.argmax(P_cls[0,ii,:])]
@@ -159,14 +163,12 @@ for idx,img_name in enumerate(sorted(os.listdir(img_path))):
 			(tx, ty, tw, th) = P_regr[0, ii, 4*cls_num:4*(cls_num+1)]
 			x, y, w, h = roi_helpers.apply_regr(x, y, w, h, tx, ty, tw, th)
 
-			bboxes[cls_name].append([16*x,16*y,16*(x+w),16*(y+h)])
+			bboxes[cls_name].append([16*x, 16*y, 16*(x+w), 16*(y+h)])
 			probs[cls_name].append(np.max(P_cls[0, ii, :]))
 
 	all_dets = {}
 
 	for key in bboxes:
-		print(key)
-		print(len(bboxes[key]))
 		bbox = np.array(bboxes[key])
 
 		new_boxes, new_probs = roi_helpers.non_max_suppression_fast(bbox, np.array(probs[key]), overlapThresh=0.5)

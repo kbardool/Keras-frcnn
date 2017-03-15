@@ -12,6 +12,7 @@ def augment(img_data, config, augment=True):
 	img_data_aug = copy.deepcopy(img_data)
 
 	img = cv2.imread(img_data_aug['filepath'])
+
 	# BGR -> RGB
 	img = img[:,:,(2,1,0)]
 

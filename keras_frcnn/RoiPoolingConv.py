@@ -37,7 +37,7 @@ class RoiPoolingConv(Layer):
         elif self.dim_ordering == 'tf':
             self.nb_channels = input_shape[0][3]
 
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         if self.dim_ordering == 'th':
             return None, self.num_rois, self.nb_channels, self.pool_size, self.pool_size
         else:
@@ -79,11 +79,8 @@ class RoiPoolingConv(Layer):
                         y1 = K.cast(y1, 'int32')
                         y2 = K.cast(y2, 'int32')
 
-                        dx = K.maximum(1,x2-x1)
-                        x2 = x1 + dx
-
-                        dy = K.maximum(1,y2-y1)
-                        y2 = y1 + dy
+                        x2 = x1 + K.maximum(1,x2-x1)
+                        y2 = y1 + K.maximum(1,y2-y1)
                         
                         new_shape = [input_shape[0], input_shape[1],
                                      y2 - y1, x2 - x1]
@@ -105,6 +102,9 @@ class RoiPoolingConv(Layer):
                         x2 = K.cast(x2, 'int32')
                         y1 = K.cast(y1, 'int32')
                         y2 = K.cast(y2, 'int32')
+
+                        x2 = x1 + K.maximum(1,x2-x1)
+                        y2 = y1 + K.maximum(1,y2-y1)
 
                         new_shape = [input_shape[0], y2 - y1,
                                      x2 - x1, input_shape[3]]
