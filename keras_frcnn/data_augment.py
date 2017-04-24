@@ -13,10 +13,6 @@ def augment(img_data, config, augment=True):
 
 	img = cv2.imread(img_data_aug['filepath'])
 
-	# BGR -> RGB
-	img = img[:,:,(2,1,0)]
-
-
 	if augment:
 		rows, cols = img.shape[:2]
 
@@ -36,19 +32,42 @@ def augment(img_data, config, augment=True):
 				bbox['y2'] = rows - y1
 				bbox['y1'] = rows - y2
 
-		if config.random_rotate:
-			M = cv2.getRotationMatrix2D((cols/2, rows/2), np.random.randint(-config.random_rotate_scale, config.random_rotate_scale), 1)
-			img = cv2.warpAffine(img, M, (cols, rows), flags=cv2.INTER_CUBIC, borderMode= cv2.BORDER_REPLICATE)
+		if config.rot_90:
+			angle = np.random.choice([0,90,180,270],1)[0]
+			if angle == 270:
+				img = np.transpose(img, (1,0,2))
+				img = cv2.flip(img, 0)
+			elif angle == 180:
+				img = cv2.flip(img, -1)
+			elif angle == 90:
+				img = np.transpose(img, (1,0,2))
+				img = cv2.flip(img, 1)
+			elif angle == 0:
+				pass
+
 			for bbox in img_data_aug['bboxes']:
-				K = np.array([[bbox['x1'],bbox['y1']],[bbox['x2'],bbox['y2']],[bbox['x1'],bbox['y2']],[bbox['x2'],bbox['y1']]])
-				K = cv2.transform(K.reshape(4,1,2),M)[:,0,:]
+				x1 = bbox['x1']
+				x2 = bbox['x2']
+				y1 = bbox['y1']
+				y2 = bbox['y2']
+				if angle == 270:
+					bbox['x1'] = y1
+					bbox['x2'] = y2
+					bbox['y1'] = cols - x2
+					bbox['y2'] = cols - x1
+				elif angle == 180:
+					bbox['x2'] = cols - x1
+					bbox['x1'] = cols - x2
+					bbox['y2'] = rows - y1
+					bbox['y1'] = rows - y2
+				elif angle == 90:
+					bbox['x1'] = rows - y2
+					bbox['x2'] = rows - y1
+					bbox['y1'] = x1
+					bbox['y2'] = x2        
+				elif angle == 0:
+					pass
 
-				(x1, y1) = np.min(K, axis=0)
-				(x2, y2) = np.max(K, axis=0)
-
-				bbox['x1'] = x1
-				bbox['x2'] = x2
-				bbox['y1'] = y1
-				bbox['y2'] = y2
-
+	img_data_aug['width'] = img.shape[1]
+	img_data_aug['height'] = img.shape[0]
 	return img_data_aug, img

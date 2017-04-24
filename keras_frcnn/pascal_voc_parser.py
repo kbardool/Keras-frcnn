@@ -1,7 +1,7 @@
 import os
 import cv2
 import xml.etree.ElementTree as ET
-
+import numpy as np
 def get_data(input_path):
 	all_imgs = []
 
@@ -53,10 +53,16 @@ def get_data(input_path):
 				if len(element_objs) > 0:
 					annotation_data = {'filepath': os.path.join(imgs_path, element_filename), 'width': element_width,
 									   'height': element_height, 'bboxes': []}
+					'''
 					if element_filename in trainval_files:
 						annotation_data['imageset'] = 'trainval'
 					elif element_filename in test_files:
-						annotation_data['imageset'] = 'test'
+						annotation_data['imageset'] = 'trainval'
+					else:
+						annotation_data['imageset'] = 'trainval'
+					'''
+					if np.random.randint(0,10) > 0:
+						annotation_data['imageset'] = 'trainval'
 					else:
 						annotation_data['imageset'] = 'test'
 
@@ -91,4 +97,4 @@ def get_data(input_path):
 			except Exception as e:
 				print(e)
 				continue
-	return all_imgs,classes_count,class_mapping
+	return all_imgs, classes_count, class_mapping

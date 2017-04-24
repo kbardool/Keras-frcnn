@@ -1,6 +1,9 @@
 from keras.engine.topology import Layer
 import keras.backend as K
 
+if K.backend() == 'tensorflow':
+    import tensorflow as tf
+
 class RoiPoolingConv(Layer):
     '''ROI pooling layer for 2D inputs.
     See Spatial Pyramid Pooling in Deep Convolutional Networks for Visual Recognition,
@@ -66,6 +69,9 @@ class RoiPoolingConv(Layer):
 
             num_pool_regions = self.pool_size
 
+            #NOTE: the RoiPooling implementation differs between theano and tensorflow due to the lack of a resize op
+            # in theano. The theano implementation is much less efficient and leads to long compile times
+
             if self.dim_ordering == 'th':
                 for jy in range(num_pool_regions):
                     for ix in range(num_pool_regions):
@@ -91,30 +97,16 @@ class RoiPoolingConv(Layer):
                         outputs.append(pooled_val)
 
             elif self.dim_ordering == 'tf':
-                for jy in range(num_pool_regions):
-                    for ix in range(num_pool_regions):
-                        x1 = x + ix * row_length
-                        x2 = x1 + row_length
-                        y1 = y + jy * col_length
-                        y2 = y1 + col_length
+                x = K.cast(x, 'int32')
+                y = K.cast(y, 'int32')
+                w = K.cast(w, 'int32')
+                h = K.cast(h, 'int32')
 
-                        x1 = K.cast(x1, 'int32')
-                        x2 = K.cast(x2, 'int32')
-                        y1 = K.cast(y1, 'int32')
-                        y2 = K.cast(y2, 'int32')
+                rs = tf.image.resize_images(img[:, y:y+h, x:x+w, :], (self.pool_size,self.pool_size))
+                outputs.append(rs)
 
-                        x2 = x1 + K.maximum(1,x2-x1)
-                        y2 = y1 + K.maximum(1,y2-y1)
-
-                        new_shape = [input_shape[0], y2 - y1,
-                                     x2 - x1, input_shape[3]]
-                        x_crop = img[:, y1:y2, x1:x2, :]
-                        xm = K.reshape(x_crop, new_shape)
-                        pooled_val = K.max(xm, axis=(1, 2))
-                        outputs.append(pooled_val)
-
-        final_output = K.concatenate(outputs,axis=0)
-        final_output = K.reshape(final_output,(1,self.num_rois, self.pool_size, self.pool_size, self.nb_channels))
+        final_output = K.concatenate(outputs, axis=0)
+        final_output = K.reshape(final_output, (1, self.num_rois, self.pool_size, self.pool_size, self.nb_channels))
 
         if self.dim_ordering == 'th':
             final_output = K.permute_dimensions(final_output, (0, 1, 4, 2, 3))

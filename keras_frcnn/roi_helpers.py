@@ -1,7 +1,102 @@
 import numpy as np
 import pdb
 import math
+import data_generators
+import copy
 
+
+def calc_iou(R, img_data, C, class_mapping):
+
+	bboxes = img_data['bboxes']
+	(width, height) = (img_data['width'], img_data['height'])
+	# get image dimensions for resizing
+	(resized_width, resized_height) = data_generators.get_new_img_size(width, height, C.im_size)
+
+	gta = np.zeros((len(bboxes), 4))
+
+	for bbox_num, bbox in enumerate(bboxes):
+		# get the GT box coordinates, and resize to account for image resizing
+		gta[bbox_num, 0] = int(round(bbox['x1'] * (resized_width / float(width))/C.rpn_stride))
+		gta[bbox_num, 1] = int(round(bbox['x2'] * (resized_width / float(width))/C.rpn_stride))
+		gta[bbox_num, 2] = int(round(bbox['y1'] * (resized_height / float(height))/C.rpn_stride))
+		gta[bbox_num, 3] = int(round(bbox['y2'] * (resized_height / float(height))/C.rpn_stride))
+
+
+	x_roi = []
+	y_class_num = []
+	y_class_regr_coords = []
+	y_class_regr_label = []
+
+	for ix in range(R.shape[0]):
+		(x1, y1, x2, y2) = R[ix, :]
+		x1 = int(round(x1))
+		y1 = int(round(y1))
+		x2 = int(round(x2))
+		y2 = int(round(y2))
+
+		best_iou = 0.0
+		best_bbox = -1
+		for bbox_num in range(len(bboxes)):
+			curr_iou = data_generators.iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]], [x1, y1, x2, y2])
+			if curr_iou > best_iou:
+				best_iou = curr_iou
+				best_bbox = bbox_num
+
+		#if 0.1 < best_iou < 0.7:
+		if best_iou < C.classifier_min_overlap:
+				continue
+		else:
+			w = x2 - x1
+			h = y2 - y1
+			x_roi.append([x1, y1, w, h])
+
+			#if best_iou <= 0.1:
+			if C.classifier_min_overlap <= best_iou < C.classifier_max_overlap:
+				# hard negative example
+				cls_name = 'bg'
+			#elif best_iou >= 0.7:
+			elif C.classifier_max_overlap <= best_iou:
+				cls_name = bboxes[best_bbox]['class']
+				cxg = (gta[best_bbox, 0] + gta[best_bbox, 1]) / 2.0
+				cyg = (gta[best_bbox, 2] + gta[best_bbox, 3]) / 2.0
+
+				cx = x1 + w / 2.0
+				cy = y1 + h / 2.0
+
+				tx = (cxg - cx) / float(w)
+				ty = (cyg - cy) / float(h)
+				tw = np.log((gta[best_bbox, 1] - gta[best_bbox, 0]) / float(w))
+				th = np.log((gta[best_bbox, 3] - gta[best_bbox, 2]) / float(h))
+			else:
+				print('roi = {}'.format(best_iou))
+				raise RuntimeError
+
+		class_num = class_mapping[cls_name]
+		class_label = len(class_mapping) * [0]
+		class_label[class_num] = 1
+		y_class_num.append(copy.deepcopy(class_label))
+		coords = [0] * 4 * (len(class_mapping) - 1)
+		labels = [0] * 4 * (len(class_mapping) - 1)
+		if cls_name != 'bg':
+			label_pos = 4 * class_num
+			sx, sy, sw, sh = C.classifier_regr_std
+			coords[label_pos:4+label_pos] = [sx*tx, sy*ty, sw*tw, sh*th]
+			labels[label_pos:4+label_pos] = [1, 1, 1, 1]
+			y_class_regr_coords.append(copy.deepcopy(coords))
+			y_class_regr_label.append(copy.deepcopy(labels))
+		else:
+			y_class_regr_coords.append(copy.deepcopy(coords))
+			y_class_regr_label.append(copy.deepcopy(labels))
+
+	if len(x_roi) == 0:
+		return None, None, None
+
+	X = np.array(x_roi)
+	Y1 = np.array(y_class_num)
+	Y2 = np.concatenate([np.array(y_class_regr_label),np.array(y_class_regr_coords)],axis=1)
+
+	return np.expand_dims(X, axis=0), np.expand_dims(Y1, axis=0), np.expand_dims(Y2, axis=0)
+	#return np.expand_dims(X, axis=0), Y1.copy(), Y2.copy()
 
 def apply_regr(x, y, w, h, tx, ty, tw, th):
 	try:
@@ -29,7 +124,7 @@ def apply_regr(x, y, w, h, tx, ty, tw, th):
 		return x, y, w, h
 
 
-def non_max_suppression_fast(boxes, probs, overlapThresh=0.95):
+def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
 	# if there are no boxes, return an empty list
 	if len(boxes) == 0:
 		return []
@@ -91,9 +186,9 @@ def non_max_suppression_fast(boxes, probs, overlapThresh=0.95):
 
 		# delete all indexes from the index list that have
 		idxs = np.delete(idxs, np.concatenate(([last],
-			np.where(overlap > overlapThresh)[0])))
+			np.where(overlap > overlap_thresh)[0])))
 
-		if len(pick) >= 300:
+		if len(pick) >= max_boxes:
 			break
 
 		# return only the bounding boxes that were picked using the
@@ -102,7 +197,7 @@ def non_max_suppression_fast(boxes, probs, overlapThresh=0.95):
 	probs = probs[pick]
 	return boxes, probs
 
-def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr = True):
+def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr = True, max_boxes=300,overlap_thresh=0.9):
 
 	regr_layer = regr_layer / C.std_scaling
 
@@ -135,7 +230,7 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr = True):
 			curr_layer += 1
 			for jy in xrange(rows):
 				for ix in xrange(cols):
-					if rpn[jy,ix] > 0.50:
+					if rpn[jy,ix] > 0.0:
 						(tx, ty, tw, th) = regr[:, jy, ix]
 
 						x1 = ix - anchor_x/2
@@ -147,8 +242,8 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr = True):
 						if use_regr:
 							(x1, y1, w, h) = apply_regr(x1, y1, w, h, tx, ty, tw, th)
 
-						w = max(4, w)
-						h = max(4, h)
+						w = max(1, w)
+						h = max(1, h)
 
 						x2 = x1 + w
 						y2 = y1 + h
@@ -171,4 +266,4 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr = True):
 
 	all_boxes = np.array(all_boxes)
 	all_probs = np.array(all_probs)
-	return non_max_suppression_fast(all_boxes,all_probs,0.7)[0]
+	return non_max_suppression_fast(all_boxes,all_probs,overlap_thresh=overlap_thresh,max_boxes=max_boxes)[0]

@@ -8,6 +8,7 @@ class FixedBatchNormalization(Layer):
     def __init__(self, epsilon=1e-3, axis=-1,
                  weights=None, beta_init='zero', gamma_init='one',
                  gamma_regularizer=None, beta_regularizer=None, **kwargs):
+
         self.supports_masking = True
         self.beta_init = initializers.get(beta_init)
         self.gamma_init = initializers.get(gamma_init)
@@ -38,9 +39,11 @@ class FixedBatchNormalization(Layer):
         self.running_std = self.add_weight(shape, initializer='one',
                                            name='{}_running_std'.format(self.name),
                                            trainable=False)
+
         if self.initial_weights is not None:
             self.set_weights(self.initial_weights)
             del self.initial_weights
+
         self.built = True
 
     def call(self, x, mask=None):
@@ -54,7 +57,7 @@ class FixedBatchNormalization(Layer):
         broadcast_shape[self.axis] = input_shape[self.axis]
 
         if sorted(reduction_axes) == range(K.ndim(x))[:-1]:
-            x_normed_running = K.batch_normalization(
+            x_normed = K.batch_normalization(
                 x, self.running_mean, self.running_std,
                 self.beta, self.gamma,
                 epsilon=self.epsilon)
@@ -64,12 +67,12 @@ class FixedBatchNormalization(Layer):
             broadcast_running_std = K.reshape(self.running_std, broadcast_shape)
             broadcast_beta = K.reshape(self.beta, broadcast_shape)
             broadcast_gamma = K.reshape(self.gamma, broadcast_shape)
-            x_normed_running = K.batch_normalization(
+            x_normed = K.batch_normalization(
                 x, broadcast_running_mean, broadcast_running_std,
                 broadcast_beta, broadcast_gamma,
                 epsilon=self.epsilon)
 
-        return x_normed_running
+        return x_normed
 
     def get_config(self):
         config = {'epsilon': self.epsilon,
