@@ -14,8 +14,9 @@ line containing:
 
     For example:
 
-    `/data/imgs/img_001.jpg,837,346,981,456,cow
-    /data/imgs/img_002.jpg,215,312,279,391,cat`
+    /data/imgs/img_001.jpg,837,346,981,456,cow
+    
+    /data/imgs/img_002.jpg,215,312,279,391,cat
 
     The classes will be inferred from the file. To use the simple parser instead of the default pascal voc style parser,
     use the command line option `-o simple`. For example `python train_frcnn.py -o simple -p my_data.txt`.
@@ -53,4 +54,4 @@ ISSUES:
 - Make sure to use `python2`, not `python3`. If you get this error:
 `TypeError: unorderable types: dict() < dict()` you are using python3
 
-- If you run out of memory, try reducing the number of ROIs that are processed simultaneously. Try passing a lower `-n` to `train_frcnn.py`.
+- If you run out of memory, try reducing the number of ROIs that are processed simultaneously. Try passing a lower `-n` to `train_frcnn.py`. Alternatively, try reducing the image size from the default value of 600 (this setting is found in `config.py`.
