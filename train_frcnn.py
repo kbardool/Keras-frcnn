@@ -24,12 +24,12 @@ parser.add_option("-p", "--path", dest="train_path", help="Path to training data
 parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of simple or pascal_voc",
 				default="pascal_voc"),
 parser.add_option("-n", "--num_rois", dest="num_rois",
-				help="Number of ROIs per iteration. Higher means more memory use.", default=4)
+				help="Number of ROIs per iteration. Higher means more memory use.", default=32)
 parser.add_option("--hf", dest="horizontal_flips", help="Augment with horizontal flips in training.", default=True)
 parser.add_option("--vf", dest="vertical_flips", help="Augment with vertical flips in training.", default=False)
 parser.add_option("--rot", "--rot_90", dest="rot_90", help="Augment with 90 degree rotations in training.",
 				default=False)
-parser.add_option("--num_epochs", dest="num_epochs", help="Number of epochs.", default=2000)
+parser.add_option("--num_epochs", dest="num_epochs", help="Number of epochs.", default=100)
 parser.add_option("--config_filename", dest="config_filename", help=
 				"Location to store all the metadata related to the training (to be used when testing).",
 				default="config.pickle")
@@ -120,7 +120,7 @@ model_classifier = Model([img_input, roi_input], classifier)
 model_all = Model([img_input, roi_input], rpn[:2] + classifier)
 
 try:
-	print 'loading weights from ', C.base_net_weights
+	print('loading weights from {}'.format(C.base_net_weights))
 	model_rpn.load_weights(C.base_net_weights,by_name=True)
 	model_classifier.load_weights(C.base_net_weights,by_name=True)
 except:
@@ -129,14 +129,14 @@ except:
 		'https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
 	))
 
-optimizer = Adam(lr=1e-7)
-optimizer_classifier = Adam(lr=1e-7)
+optimizer = Adam(lr=1e-5)
+optimizer_classifier = Adam(lr=1e-5)
 
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
 model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
 
-epoch_length = 10
+epoch_length = 1000
 num_epochs = int(options.num_epochs)
 iter_num = 0
 epoch_num = 0
@@ -194,7 +194,6 @@ while True:
 			else:
 				sel_samples = random.choice(pos_samples)
 
-		P = model_classifier.predict([X, X2[:, sel_samples, :]])
 		loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
 
 		losses[iter_num, 0] = loss_rpn[1]
