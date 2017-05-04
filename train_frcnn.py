@@ -24,10 +24,10 @@ parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of s
 				default="pascal_voc"),
 parser.add_option("-n", "--num_rois", dest="num_rois",
 				help="Number of ROIs per iteration. Higher means more memory use.", default=32)
-parser.add_option("--hf", dest="horizontal_flips", help="Augment with horizontal flips in training. (Default=true).", default=True)
-parser.add_option("--vf", dest="vertical_flips", help="Augment with vertical flips in training. (Default=false).", default=False)
+parser.add_option("--hf", dest="horizontal_flips", help="Augment with horizontal flips in training. (Default=true).", action="store_true", default=False)
+parser.add_option("--vf", dest="vertical_flips", help="Augment with vertical flips in training. (Default=false).", action="store_true", default=False)
 parser.add_option("--rot", "--rot_90", dest="rot_90", help="Augment with 90 degree rotations in training. (Default=false).",
-				default=False)
+				  action="store_true", default=False)
 parser.add_option("--num_epochs", dest="num_epochs", help="Number of epochs.", default=2000)
 parser.add_option("--config_filename", dest="config_filename", help=
 				"Location to store all the metadata related to the training (to be used when testing).",
@@ -40,7 +40,6 @@ parser.add_option("--input_weight_path", dest="input_weight_path", help="Input p
 if not options.train_path:   # if filename is not given
 	parser.error('Error: path to training data must be specified. Pass --path to command line')
 
-
 if options.parser == 'pascal_voc':
 	from keras_frcnn.pascal_voc_parser import get_data
 elif options.parser == 'simple':
@@ -52,9 +51,9 @@ else:
 C = config.Config()
 
 C.num_rois = int(options.num_rois)
-C.use_horizontal_flips = options.horizontal_flips
-C.use_vertical_flips = options.vertical_flips
-C.rot_90 = options.rot_90
+C.use_horizontal_flips = bool(options.horizontal_flips)
+C.use_vertical_flips = bool(options.vertical_flips)
+C.rot_90 = bool(options.rot_90)
 
 C.model_path = options.output_weight_path
 
@@ -128,13 +127,13 @@ except:
 		'https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
 	))
 
-optimizer = Adam(lr=1e-4)
-optimizer_classifier = Adam(lr=1e-4)
+optimizer = Adam(lr=1e-5)
+optimizer_classifier = Adam(lr=1e-5)
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
 model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
 
-epoch_length = len(train_imgs)
+epoch_length = 1000
 num_epochs = int(options.num_epochs)
 iter_num = 0
 epoch_num = 0
@@ -170,7 +169,7 @@ while True:
 		# note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
 		X2, Y1, Y2 = roi_helpers.calc_iou(R, img_data, C, class_mapping)
 
-		if X2 is None:# or X2.shape[1] < C.num_rois:
+		if X2 is None:
 			rpn_accuracy_rpn_monitor.append(0)
 			rpn_accuracy_for_epoch.append(0)
 			continue
@@ -190,7 +189,6 @@ while True:
 
 		rpn_accuracy_rpn_monitor.append(len(pos_samples))
 		rpn_accuracy_for_epoch.append((len(pos_samples)))
-
 
 		if C.num_rois > 1:
 			if len(pos_samples) < C.num_rois/2:
@@ -212,7 +210,6 @@ while True:
 			else:
 				sel_samples = random.choice(pos_samples)
 
-		P = model_classifier.predict([X, X2[:, sel_samples]])
 		loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
 
 		losses[iter_num, 0] = loss_rpn[1]
