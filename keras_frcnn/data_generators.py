@@ -40,10 +40,9 @@ def intersection(ai, bi):
 
 def iou(a, b):
 	# a and b should be (x1,y1,x2,y2)
-	assert a[0] < a[2]
-	assert a[1] < a[3]
-	assert b[0] < b[2]
-	assert b[1] < b[3]
+
+	if a[0] >= a[2] or a[1] >= a[3] or b[0] >= b[2] or b[1] >= b[3]:
+		return 0.0
 
 	i = intersection(a, b)
 	u = union(a, b)

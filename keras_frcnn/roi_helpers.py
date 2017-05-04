@@ -21,7 +21,6 @@ def calc_iou(R, img_data, C, class_mapping):
 		gta[bbox_num, 2] = int(round(bbox['y1'] * (resized_height / float(height))/C.rpn_stride))
 		gta[bbox_num, 3] = int(round(bbox['y2'] * (resized_height / float(height))/C.rpn_stride))
 
-
 	x_roi = []
 	y_class_num = []
 	y_class_regr_coords = []
@@ -42,7 +41,6 @@ def calc_iou(R, img_data, C, class_mapping):
 				best_iou = curr_iou
 				best_bbox = bbox_num
 
-		#if 0.1 < best_iou < 0.7:
 		if best_iou < C.classifier_min_overlap:
 				continue
 		else:
@@ -50,11 +48,9 @@ def calc_iou(R, img_data, C, class_mapping):
 			h = y2 - y1
 			x_roi.append([x1, y1, w, h])
 
-			#if best_iou <= 0.1:
 			if C.classifier_min_overlap <= best_iou < C.classifier_max_overlap:
 				# hard negative example
 				cls_name = 'bg'
-			#elif best_iou >= 0.7:
 			elif C.classifier_max_overlap <= best_iou:
 				cls_name = bboxes[best_bbox]['class']
 				cxg = (gta[best_bbox, 0] + gta[best_bbox, 1]) / 2.0
@@ -96,7 +92,6 @@ def calc_iou(R, img_data, C, class_mapping):
 	Y2 = np.concatenate([np.array(y_class_regr_label),np.array(y_class_regr_coords)],axis=1)
 
 	return np.expand_dims(X, axis=0), np.expand_dims(Y1, axis=0), np.expand_dims(Y2, axis=0)
-	#return np.expand_dims(X, axis=0), Y1.copy(), Y2.copy()
 
 def apply_regr(x, y, w, h, tx, ty, tw, th):
 	try:
@@ -123,8 +118,39 @@ def apply_regr(x, y, w, h, tx, ty, tw, th):
 		print(e)
 		return x, y, w, h
 
+def apply_regr_np(X, T):
+	try:
+		x = X[0, :, :]
+		y = X[1, :, :]
+		w = X[2, :, :]
+		h = X[3, :, :]
+
+		tx = T[0, :, :]
+		ty = T[1, :, :]
+		tw = T[2, :, :]
+		th = T[3, :, :]
+
+		cx = x + w/2.
+		cy = y + h/2.
+		cx1 = tx * w + cx
+		cy1 = ty * h + cy
+
+		w1 = np.exp(tw) * w
+		h1 = np.exp(th) * h
+		x1 = cx1 - w1/2.
+		y1 = cy1 - h1/2.
+
+		x1 = np.round(x1)
+		y1 = np.round(y1)
+		w1 = np.round(w1)
+		h1 = np.round(h1)
+		return np.stack([x1, y1, w1, h1])
+	except Exception as e:
+		print(e)
+		return X
 
 def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
+	# code used from here: http://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
 	# if there are no boxes, return an empty list
 	if len(boxes) == 0:
 		return []
@@ -191,13 +217,13 @@ def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
 		if len(pick) >= max_boxes:
 			break
 
-		# return only the bounding boxes that were picked using the
-		# integer data type
+	# return only the bounding boxes that were picked using the integer data type
 	boxes = boxes[pick].astype("int")
 	probs = probs[pick]
 	return boxes, probs
 
-def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr = True, max_boxes=300,overlap_thresh=0.9):
+import time
+def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr=True, max_boxes=300,overlap_thresh=0.9):
 
 	regr_layer = regr_layer / C.std_scaling
 
@@ -206,13 +232,17 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr = True, max_boxe
 
 	assert rpn_layer.shape[0] == 1
 
-	all_boxes = []
-	all_probs = []
 	if dim_ordering == 'th':
 		(rows,cols) = rpn_layer.shape[2:]
+
 	elif dim_ordering == 'tf':
 		(rows, cols) = rpn_layer.shape[1:3]
+
 	curr_layer = 0
+	if dim_ordering == 'tf':
+		A = np.zeros((4, rpn_layer.shape[1], rpn_layer.shape[2], rpn_layer.shape[3]))
+	elif dim_ordering == 'th':
+		A = np.zeros((4, rpn_layer.shape[2], rpn_layer.shape[3], rpn_layer.shape[1]))
 
 	for anchor_size in anchor_sizes:
 		for anchor_ratio in anchor_ratios:
@@ -220,50 +250,46 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr = True, max_boxe
 			anchor_x = (anchor_size * anchor_ratio[0])/C.rpn_stride
 			anchor_y = (anchor_size * anchor_ratio[1])/C.rpn_stride
 			if dim_ordering == 'th':
-				rpn = rpn_layer[0, curr_layer, :, :]
 				regr = regr_layer[0, 4 * curr_layer:4 * curr_layer + 4, :, :]
 			else:
-				rpn = rpn_layer[0, :, :, curr_layer]
-				regr = np.copy(regr_layer[0, :, :, 4 * curr_layer:4 * curr_layer + 4])
-				regr = np.transpose(regr,(2,0,1))
+				regr = regr_layer[0, :, :, 4 * curr_layer:4 * curr_layer + 4]
+				regr = np.transpose(regr, (2, 0, 1))
+
+			X, Y = np.meshgrid(np.arange(cols),np. arange(rows))
+
+			A[0, :, :, curr_layer] = X - anchor_x/2
+			A[1, :, :, curr_layer] = Y - anchor_y/2
+			A[2, :, :, curr_layer] = anchor_x
+			A[3, :, :, curr_layer] = anchor_y
+
+			if use_regr:
+				A[:, :, :, curr_layer] = apply_regr_np(A[:, :, :, curr_layer], regr)
+
+			A[2, :, :, curr_layer] = np.maximum(1, A[2, :, :, curr_layer])
+			A[3, :, :, curr_layer] = np.maximum(1, A[3, :, :, curr_layer])
+			A[2, :, :, curr_layer] += A[0, :, :, curr_layer]
+			A[3, :, :, curr_layer] += A[1, :, :, curr_layer]
+
+			A[0, :, :, curr_layer] = np.maximum(0, A[0, :, :, curr_layer])
+			A[1, :, :, curr_layer] = np.maximum(0, A[1, :, :, curr_layer])
+			A[2, :, :, curr_layer] = np.minimum(cols-1, A[2, :, :, curr_layer])
+			A[3, :, :, curr_layer] = np.minimum(rows-1, A[3, :, :, curr_layer])
 
 			curr_layer += 1
-			for jy in xrange(rows):
-				for ix in xrange(cols):
-					if rpn[jy,ix] > 0.0:
-						(tx, ty, tw, th) = regr[:, jy, ix]
 
-						x1 = ix - anchor_x/2
-						y1 = jy - anchor_y/2
+	all_boxes = np.reshape(A.transpose((0, 3, 1,2)), (4, -1)).transpose((1, 0))
+	all_probs = rpn_layer.transpose((0, 3, 1, 2)).reshape((-1))
 
-						w = anchor_x
-						h = anchor_y
+	x1 = all_boxes[:, 0]
+	y1 = all_boxes[:, 1]
+	x2 = all_boxes[:, 2]
+	y2 = all_boxes[:, 3]
 
-						if use_regr:
-							(x1, y1, w, h) = apply_regr(x1, y1, w, h, tx, ty, tw, th)
+	idxs = np.where((x1 - x2 >= 0) | (y1 - y2 >= 0))
 
-						w = max(1, w)
-						h = max(1, h)
+	all_boxes = np.delete(all_boxes, idxs, 0)
+	all_probs = np.delete(all_probs, idxs, 0)
 
-						x2 = x1 + w
-						y2 = y1 + h
+	result = non_max_suppression_fast(all_boxes, all_probs, overlap_thresh=overlap_thresh, max_boxes=max_boxes)[0]
 
-						# box must start inside image
-						x1 = max(x1, 0)
-						y1 = max(y1, 0)
-						
-						#box must end inside image
-						x2 = min(x2, cols-1)
-						y2 = min(y2, rows-1)
-						
-						if x2 - x1 < 1:
-							continue
-						if y2 - y1 < 1:
-							continue
-
-						all_boxes.append((x1, y1, x2, y2))
-						all_probs.append(rpn[jy, ix])
-
-	all_boxes = np.array(all_boxes)
-	all_probs = np.array(all_probs)
-	return non_max_suppression_fast(all_boxes,all_probs,overlap_thresh=overlap_thresh,max_boxes=max_boxes)[0]
+	return result

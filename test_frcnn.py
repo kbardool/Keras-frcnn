@@ -137,8 +137,9 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
 	# get the feature maps and output from the RPN
 	[Y1, Y2, F] = model_rpn.predict(X)
+	
 
-	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(),overlap_thresh=0.7)
+	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.7)
 
 	# convert from (x1,y1,x2,y2) to (x,y,w,h)
 	R[:, 2] -= R[:, 0]
@@ -192,7 +193,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
 	all_dets = []
 
-	for key in bboxes :
+	for key in bboxes:
 		bbox = np.array(bboxes[key])
 
 		new_boxes, new_probs = roi_helpers.non_max_suppression_fast(bbox, np.array(probs[key]), overlap_thresh=0.5)
@@ -205,12 +206,13 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 			all_dets.append((key,100*new_probs[jk]))
 
 			(retval,baseLine) = cv2.getTextSize(textLabel,cv2.FONT_HERSHEY_COMPLEX,1,1)
-			textOrg = (x1, y1+20)
+			textOrg = (x1, y1-0)
 
 			cv2.rectangle(img_scaled, (textOrg[0] - 5, textOrg[1]+baseLine - 5), (textOrg[0]+retval[0] + 5, textOrg[1]-retval[1] - 5), (0, 0, 0), 2)
 			cv2.rectangle(img_scaled, (textOrg[0] - 5,textOrg[1]+baseLine - 5), (textOrg[0]+retval[0] + 5, textOrg[1]-retval[1] - 5), (255, 255, 255), -1)
-			cv2.putText(img_scaled, textLabel, textOrg, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 1)
+			cv2.putText(img_scaled, textLabel, textOrg, cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 0), 1)
 	print('Elapsed time = {}'.format(time.time() - st))
 	cv2.imshow('img', img_scaled)
 	cv2.waitKey(0)
+	#cv2.imwrite('./imgs/{}.png'.format(idx),img_scaled)
 	print(all_dets)
