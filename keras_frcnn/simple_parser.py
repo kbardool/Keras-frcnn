@@ -59,6 +59,6 @@ def get_data(input_path):
 				class_mapping['bg'] = len(class_mapping) - 1
 				class_mapping[key_to_switch] = val_to_switch
 		
-		return all_data,classes_count,class_mapping
+		return all_data, classes_count, class_mapping
 
 

@@ -14,6 +14,7 @@ from keras_frcnn import roi_helpers
 from keras_frcnn import data_generators
 from sklearn.metrics import average_precision_score
 
+
 def get_map(pred, gt, f):
 	T = {}
 	P = {}
@@ -69,6 +70,8 @@ def get_map(pred, gt, f):
 			T[gt_box['class']].append(1)
 			P[gt_box['class']].append(0)
 
+	#import pdb
+	#pdb.set_trace()
 	return T, P
 
 sys.setrecursionlimit(40000)
@@ -181,9 +184,7 @@ model_classifier.compile(optimizer='sgd', loss='mse')
 all_imgs, _, _ = get_data(options.test_path)
 test_imgs = [s for s in all_imgs if s['imageset'] == 'test']
 
-bbox_threshold = 0.0
 
-visualise = True
 T = {}
 P = {}
 for idx, img_data in enumerate(test_imgs):
@@ -194,13 +195,6 @@ for idx, img_data in enumerate(test_imgs):
 	img = cv2.imread(filepath)
 
 	X, fx, fy = format_img(img, C)
-
-	img_scaled = np.transpose(X.copy()[0, (2, 1, 0), :, :], (1, 2, 0)).copy()
-	img_scaled[:, :, 0] += 123.68
-	img_scaled[:, :, 1] += 116.779
-	img_scaled[:, :, 2] += 103.939
-
-	img_scaled = img_scaled.astype(np.uint8)
 
 	if K.image_dim_ordering() == 'tf':
 		X = np.transpose(X, (0, 2, 3, 1))
@@ -236,7 +230,7 @@ for idx, img_data in enumerate(test_imgs):
 
 		for ii in range(P_cls.shape[1]):
 
-			if np.max(P_cls[0, ii, :]) < bbox_threshold or np.argmax(P_cls[0, ii, :]) == (P_cls.shape[2] - 1):
+			if np.argmax(P_cls[0, ii, :]) == (P_cls.shape[2] - 1):
 				continue
 
 			cls_name = class_mapping[np.argmax(P_cls[0, ii, :])]
@@ -268,21 +262,10 @@ for idx, img_data in enumerate(test_imgs):
 		new_boxes, new_probs = roi_helpers.non_max_suppression_fast(bbox, np.array(probs[key]), overlap_thresh=0.5)
 		for jk in range(new_boxes.shape[0]):
 			(x1, y1, x2, y2) = new_boxes[jk, :]
-
-			cv2.rectangle(img_scaled, (x1, y1), (x2, y2), class_to_color[key], 2)
-
-			textLabel = '{}: {}'.format(key, int(100 * new_probs[jk]))
 			det = {'x1': x1, 'x2': x2, 'y1': y1, 'y2': y2, 'class': key, 'prob': new_probs[jk]}
 			all_dets.append(det)
 
-			(retval, baseLine) = cv2.getTextSize(textLabel, cv2.FONT_HERSHEY_COMPLEX, 1, 1)
-			textOrg = (x1, y1 + 20)
 
-			cv2.rectangle(img_scaled, (textOrg[0] - 5, textOrg[1] + baseLine - 5),
-						  (textOrg[0] + retval[0] + 5, textOrg[1] - retval[1] - 5), (0, 0, 0), 2)
-			cv2.rectangle(img_scaled, (textOrg[0] - 5, textOrg[1] + baseLine - 5),
-						  (textOrg[0] + retval[0] + 5, textOrg[1] - retval[1] - 5), (255, 255, 255), -1)
-			cv2.putText(img_scaled, textLabel, textOrg, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 1)
 	print('Elapsed time = {}'.format(time.time() - st))
 	t, p = get_map(all_dets, img_data['bboxes'], (fx, fy))
 	for key in t.keys():
@@ -293,9 +276,9 @@ for idx, img_data in enumerate(test_imgs):
 		P[key].extend(p[key])
 	all_aps = []
 	for key in T.keys():
-		#import pdb
-		#pdb.set_trace()
 		ap = average_precision_score(T[key], P[key])
 		print('{} AP: {}'.format(key, ap))
 		all_aps.append(ap)
 	print('mAP = {}'.format(np.mean(np.array(all_aps))))
+	#print(T)
+	#print(P)
