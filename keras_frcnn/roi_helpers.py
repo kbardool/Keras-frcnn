@@ -198,14 +198,11 @@ def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
 		yy2_un = np.maximum(y2[i], y2[idxs[:last]])
 
 		# compute the width and height of the bounding box
-		ww_int = xx2_int - xx1_int
-		hh_int = yy2_int - yy1_int
+		ww_int = np.maximum(0, xx2_int - xx1_int)
+		hh_int = np.maximum(0, yy2_int - yy1_int)
 
-		ww_un = xx2_un - xx1_un
-		hh_un = yy2_un - yy1_un
-
-		ww_un = np.maximum(0, ww_un)
-		hh_un = np.maximum(0, hh_un)
+		ww_un = np.maximum(0, xx2_un - xx1_un)
+		hh_un = np.maximum(0, yy2_un - yy1_un)
 
 		# compute the ratio of overlap
 		overlap = (ww_int*hh_int)/(ww_un*hh_un + 1e-9)
