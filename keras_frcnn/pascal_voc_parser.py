@@ -29,13 +29,20 @@ def get_data(input_path):
 			with open(imgsets_path_trainval) as f:
 				for line in f:
 					trainval_files.append(line.strip() + '.jpg')
+		except Exception as e:
+			print(e)
+
+		try:
 			with open(imgsets_path_test) as f:
 				for line in f:
 					test_files.append(line.strip() + '.jpg')
 		except Exception as e:
-			print(e)
+			if data_path[-7:] == 'VOC2012':
+				# this is expected, most pascal voc distibutions dont have the test.txt file
+				pass
+			else:
+				print(e)
 		
-
 		annots = [os.path.join(annot_path, s) for s in os.listdir(annot_path)]
 		idx = 0
 		for annot in annots:
