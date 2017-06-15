@@ -7,7 +7,8 @@ import roi_helpers
 import threading
 import itertools
 
-random.seed(0)
+# random.seed(0)
+
 
 def get_img_output_length(width, height):
 	def get_output_length(input_length):
@@ -22,12 +23,14 @@ def get_img_output_length(width, height):
 
 	return get_output_length(width), get_output_length(height)
 
-def union(au, bu):
-	x = min(au[0], bu[0])
-	y = min(au[1], bu[1])
-	w = max(au[2], bu[2]) - x
-	h = max(au[3], bu[3]) - y
-	return x, y, w, h
+
+def union(au, bu, intersection):
+	area_a = (au[2] - au[0]) * (au[3] - au[1])
+	area_b = (bu[2] - bu[0]) * (bu[3] - bu[1])
+	area_intersection = intersection[2] * intersection[3]
+	area_union = area_a + area_b - area_intersection
+	return area_union
+
 
 def intersection(ai, bi):
 	x = max(ai[0], bi[0])
@@ -38,6 +41,7 @@ def intersection(ai, bi):
 		return 0, 0, 0, 0
 	return x, y, w, h
 
+
 def iou(a, b):
 	# a and b should be (x1,y1,x2,y2)
 
@@ -45,10 +49,9 @@ def iou(a, b):
 		return 0.0
 
 	i = intersection(a, b)
-	u = union(a, b)
-
+	area_u = union(a, b, i)
 	area_i = i[2] * i[3]
-	area_u = u[2] * u[3]
+
 	return float(area_i) / float(area_u)
 
 

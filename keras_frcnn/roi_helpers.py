@@ -172,6 +172,9 @@ def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
 	# initialize the list of picked indexes	
 	pick = []
 
+	# calculate the areas
+	area = (x2 - x1) * (y2 - y1)
+
 	# sort the bounding boxes 
 	idxs = np.argsort(probs)
 
@@ -191,21 +194,16 @@ def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
 		xx2_int = np.minimum(x2[i], x2[idxs[:last]])
 		yy2_int = np.minimum(y2[i], y2[idxs[:last]])
 
-		# find the union
-		xx1_un = np.minimum(x1[i], x1[idxs[:last]])
-		yy1_un = np.minimum(y1[i], y1[idxs[:last]])
-		xx2_un = np.maximum(x2[i], x2[idxs[:last]])
-		yy2_un = np.maximum(y2[i], y2[idxs[:last]])
-
-		# compute the width and height of the bounding box
 		ww_int = np.maximum(0, xx2_int - xx1_int)
 		hh_int = np.maximum(0, yy2_int - yy1_int)
 
-		ww_un = np.maximum(0, xx2_un - xx1_un)
-		hh_un = np.maximum(0, yy2_un - yy1_un)
+		area_int = ww_int * hh_int
+
+		# find the union
+		area_union = area[i] + area[idxs[:last]] - area_int
 
 		# compute the ratio of overlap
-		overlap = (ww_int*hh_int)/(ww_un*hh_un + 1e-9)
+		overlap = area_int/(area_union + 1e-6)
 
 		# delete all indexes from the index list that have
 		idxs = np.delete(idxs, np.concatenate(([last],

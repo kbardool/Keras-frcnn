@@ -7,7 +7,7 @@ from optparse import OptionParser
 import pickle
 
 from keras import backend as K
-from keras.optimizers import Adam
+from keras.optimizers import Adam, SGD, RMSprop
 from keras.layers import Input
 from keras.models import Model
 from keras_frcnn import config, data_generators
@@ -227,7 +227,7 @@ for epoch_num in range(num_epochs):
 			iter_num += 1
 
 			progbar.update(iter_num, [('rpn_cls', np.mean(losses[:iter_num, 0])), ('rpn_regr', np.mean(losses[:iter_num, 1])),
-									  ('detector_cls', np.mean(losses[:iter_num, 2])), ('detector_regr', np.mean(losses[:iter_num, 0]))])
+									  ('detector_cls', np.mean(losses[:iter_num, 2])), ('detector_regr', np.mean(losses[:iter_num, 3]))])
 
 			if iter_num == epoch_length:
 				loss_rpn_cls = np.mean(losses[:, 0])
