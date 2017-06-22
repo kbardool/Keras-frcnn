@@ -197,10 +197,10 @@ for epoch_num in range(num_epochs):
 			rpn_accuracy_for_epoch.append((len(pos_samples)))
 
 			if C.num_rois > 1:
-				if len(pos_samples) < C.num_rois/2:
+				if len(pos_samples) < C.num_rois//2:
 					selected_pos_samples = pos_samples.tolist()
 				else:
-					selected_pos_samples = np.random.choice(pos_samples, C.num_rois/2, replace=False).tolist()
+					selected_pos_samples = np.random.choice(pos_samples, C.num_rois//2, replace=False).tolist()
 				try:
 					selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=False).tolist()
 				except:
