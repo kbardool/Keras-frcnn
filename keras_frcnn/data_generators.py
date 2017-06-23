@@ -1,9 +1,9 @@
+from __future__ import absolute_import
 import numpy as np
 import cv2
 import random
 import copy
 from . import data_augment
-from . import roi_helpers
 import threading
 import itertools
 
