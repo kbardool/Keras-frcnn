@@ -1,3 +1,4 @@
+from __future__ import division
 import os
 import cv2
 import numpy as np
@@ -31,7 +32,7 @@ if not options.test_path:   # if filename is not given
 
 config_output_filename = options.config_filename
 
-with open(config_output_filename, 'r') as f_in:
+with open(config_output_filename, 'rb') as f_in:
 	C = pickle.load(f_in)
 
 # turn off any data augmentation at test time
@@ -41,18 +42,17 @@ C.rot_90 = False
 
 img_path = options.test_path
 
-
 def format_img(img, C):
 	img_min_side = float(C.im_size)
 	(height,width,_) = img.shape
 	
 	if width <= height:
-		f = img_min_side/width
-		new_height = int(f * height)
+		ratio = img_min_side/width
+		new_height = int(ratio * height)
 		new_width = int(img_min_side)
 	else:
-		f = img_min_side/height
-		new_width = int(f * width)
+		ratio = img_min_side/height
+		new_width = int(ratio * width)
 		new_height = int(img_min_side)
 	img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
 	img = img[:, :, (2, 1, 0)]
@@ -63,15 +63,27 @@ def format_img(img, C):
 	img /= C.img_scaling_factor
 	img = np.transpose(img, (2, 0, 1))
 	img = np.expand_dims(img, axis=0)
-	return img
+	return img, ratio
 
+
+#
+# Method to transform the coordonates of the bounding box to its original size
+#
+def get_real_coordonates(ratio, x1, y1, x2, y2):
+
+	real_x1 = x1 // ratio
+	real_y1 = y1 // ratio
+	real_x2 = x2 // ratio 
+	real_y2 = y2 // ratio 
+
+	return (real_x1, real_y1, real_x2, real_y2)
 
 class_mapping = C.class_mapping
 
 if 'bg' not in class_mapping:
 	class_mapping['bg'] = len(class_mapping)
 
-class_mapping = {v: k for k, v in class_mapping.iteritems()}
+class_mapping = {v: k for k, v in class_mapping.items()}
 print(class_mapping)
 class_to_color = {class_mapping[v]: np.random.randint(0, 255, 3) for v in class_mapping}
 C.num_rois = int(options.num_rois)
@@ -125,7 +137,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
 	img = cv2.imread(filepath)
 
-	X = format_img(img, C)
+	X, ratio = format_img(img, C)
 
 	img_scaled = np.transpose(X.copy()[0, (2, 1, 0), :, :], (1, 2, 0)).copy()
 	img_scaled[:, :, 0] += 123.68
@@ -195,6 +207,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
 	all_dets = []
 
+
 	for key in bboxes:
 		bbox = np.array(bboxes[key])
 
@@ -202,19 +215,22 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 		for jk in range(new_boxes.shape[0]):
 			(x1, y1, x2, y2) = new_boxes[jk,:]
 
-			cv2.rectangle(img_scaled,(x1, y1), (x2, y2), class_to_color[key],2)
+			(real_x1, real_y1, real_x2, real_y2) = get_real_coordonates(ratio, x1, y1, x2, y2)
+
+			cv2.rectangle(img,(real_x1, real_y1), (real_x2, real_y2), (int(class_to_color[key][0]), int(class_to_color[key][1]), int(class_to_color[key][2])),2)
 
 			textLabel = '{}: {}'.format(key,int(100*new_probs[jk]))
 			all_dets.append((key,100*new_probs[jk]))
 
 			(retval,baseLine) = cv2.getTextSize(textLabel,cv2.FONT_HERSHEY_COMPLEX,1,1)
-			textOrg = (x1, y1-0)
+			textOrg = (real_x1, real_y1-0)
 
-			cv2.rectangle(img_scaled, (textOrg[0] - 5, textOrg[1]+baseLine - 5), (textOrg[0]+retval[0] + 5, textOrg[1]-retval[1] - 5), (0, 0, 0), 2)
-			cv2.rectangle(img_scaled, (textOrg[0] - 5,textOrg[1]+baseLine - 5), (textOrg[0]+retval[0] + 5, textOrg[1]-retval[1] - 5), (255, 255, 255), -1)
-			cv2.putText(img_scaled, textLabel, textOrg, cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 0), 1)
+			cv2.rectangle(img, (textOrg[0] - 5, textOrg[1]+baseLine - 5), (textOrg[0]+retval[0] + 5, textOrg[1]-retval[1] - 5), (0, 0, 0), 2)
+			cv2.rectangle(img, (textOrg[0] - 5,textOrg[1]+baseLine - 5), (textOrg[0]+retval[0] + 5, textOrg[1]-retval[1] - 5), (255, 255, 255), -1)
+			cv2.putText(img, textLabel, textOrg, cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 0), 1)
+
 	print('Elapsed time = {}'.format(time.time() - st))
-	cv2.imshow('img', img_scaled)
-	cv2.waitKey(0)
-	#cv2.imwrite('./imgs/{}.png'.format(idx),img_scaled)
+	#cv2.imshow('img', img_scaled)
+	#cv2.waitKey(0)
+	cv2.imwrite('./results_imgs/{}.png'.format(idx),img)
 	print(all_dets)
