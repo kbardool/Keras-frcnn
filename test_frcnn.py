@@ -84,6 +84,8 @@ def get_real_coordinates(ratio, x1, y1, x2, y2):
 	real_x2 = int(round(x2 // ratio))
 	real_y2 = int(round(y2 // ratio))
 
+	return (real_x1, real_y1, real_x2 ,real_y2)
+
 class_mapping = C.class_mapping
 
 if 'bg' not in class_mapping:
