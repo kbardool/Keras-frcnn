@@ -66,15 +66,13 @@ def format_img(img, C):
 	return img, ratio
 
 
-#
-# Method to transform the coordonates of the bounding box to its original size
-#
-def get_real_coordonates(ratio, x1, y1, x2, y2):
+# Method to transform the coordinates of the bounding box to its original size
+def get_real_coordinates(ratio, x1, y1, x2, y2):
 
-	real_x1 = x1 // ratio
-	real_y1 = y1 // ratio
-	real_x2 = x2 // ratio 
-	real_y2 = y2 // ratio 
+	real_x1 = int(round(x1 // ratio))
+	real_y1 = int(round(y1 // ratio))
+	real_x2 = int(round(x2 // ratio))
+	real_y2 = int(round(y2 // ratio))
 
 	return (real_x1, real_y1, real_x2, real_y2)
 
@@ -202,11 +200,10 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 				x, y, w, h = roi_helpers.apply_regr(x, y, w, h, tx, ty, tw, th)
 			except:
 				pass
-			bboxes[cls_name].append([16*x, 16*y, 16*(x+w), 16*(y+h)])
+			bboxes[cls_name].append([C.rpn_stride*x, C.rpn_stride*y, C.rpn_stride*(x+w), C.rpn_stride*(y+h)])
 			probs[cls_name].append(np.max(P_cls[0, ii, :]))
 
 	all_dets = []
-
 
 	for key in bboxes:
 		bbox = np.array(bboxes[key])
@@ -215,7 +212,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 		for jk in range(new_boxes.shape[0]):
 			(x1, y1, x2, y2) = new_boxes[jk,:]
 
-			(real_x1, real_y1, real_x2, real_y2) = get_real_coordonates(ratio, x1, y1, x2, y2)
+			(real_x1, real_y1, real_x2, real_y2) = get_real_coordinates(ratio, x1, y1, x2, y2)
 
 			cv2.rectangle(img,(real_x1, real_y1), (real_x2, real_y2), (int(class_to_color[key][0]), int(class_to_color[key][1]), int(class_to_color[key][2])),2)
 
@@ -230,7 +227,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 			cv2.putText(img, textLabel, textOrg, cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 0), 1)
 
 	print('Elapsed time = {}'.format(time.time() - st))
-	#cv2.imshow('img', img_scaled)
-	#cv2.waitKey(0)
-	cv2.imwrite('./results_imgs/{}.png'.format(idx),img)
 	print(all_dets)
+	cv2.imshow('img', img)
+	cv2.waitKey(0)
+	#cv2.imwrite('./results_imgs/{}.png'.format(idx),img)
