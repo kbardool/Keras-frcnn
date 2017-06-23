@@ -42,10 +42,11 @@ C.rot_90 = False
 
 img_path = options.test_path
 
-def format_img(img, C):
+def format_img_size(img, C):
+	""" formats the image size based on config """
 	img_min_side = float(C.im_size)
 	(height,width,_) = img.shape
-	
+		
 	if width <= height:
 		ratio = img_min_side/width
 		new_height = int(ratio * height)
@@ -55,6 +56,10 @@ def format_img(img, C):
 		new_width = int(ratio * width)
 		new_height = int(img_min_side)
 	img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+	return img, ratio	
+
+def format_img_channels(img, C):
+	""" formats the image channels based on config """
 	img = img[:, :, (2, 1, 0)]
 	img = img.astype(np.float32)
 	img[:, :, 0] -= C.img_channel_mean[0]
@@ -63,8 +68,13 @@ def format_img(img, C):
 	img /= C.img_scaling_factor
 	img = np.transpose(img, (2, 0, 1))
 	img = np.expand_dims(img, axis=0)
-	return img, ratio
+	return img
 
+def format_img(img, C):
+	""" formats an image for model prediction based on config """
+	img, ratio = format_img_size(img, C)
+	img = format_img_channels(img, C)
+	return img, ratio
 
 # Method to transform the coordinates of the bounding box to its original size
 def get_real_coordinates(ratio, x1, y1, x2, y2):
@@ -73,8 +83,6 @@ def get_real_coordinates(ratio, x1, y1, x2, y2):
 	real_y1 = int(round(y1 // ratio))
 	real_x2 = int(round(x2 // ratio))
 	real_y2 = int(round(y2 // ratio))
-
-	return (real_x1, real_y1, real_x2, real_y2)
 
 class_mapping = C.class_mapping
 
@@ -136,13 +144,6 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 	img = cv2.imread(filepath)
 
 	X, ratio = format_img(img, C)
-
-	img_scaled = np.transpose(X.copy()[0, (2, 1, 0), :, :], (1, 2, 0)).copy()
-	img_scaled[:, :, 0] += 123.68
-	img_scaled[:, :, 1] += 116.779
-	img_scaled[:, :, 2] += 103.939
-	
-	img_scaled = img_scaled.astype(np.uint8)
 
 	if K.image_dim_ordering() == 'tf':
 		X = np.transpose(X, (0, 2, 3, 1))
@@ -230,4 +231,4 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 	print(all_dets)
 	cv2.imshow('img', img)
 	cv2.waitKey(0)
-	#cv2.imwrite('./results_imgs/{}.png'.format(idx),img)
+	# cv2.imwrite('./results_imgs/{}.png'.format(idx),img)
