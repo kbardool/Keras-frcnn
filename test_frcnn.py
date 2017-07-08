@@ -7,7 +7,6 @@ import pickle
 from optparse import OptionParser
 import time
 from keras_frcnn import config
-import keras_frcnn.resnet as nn
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
@@ -23,6 +22,7 @@ parser.add_option("-n", "--num_rois", dest="num_rois",
 parser.add_option("--config_filename", dest="config_filename", help=
 				"Location to read the metadata related to the training (generated when training).",
 				default="config.pickle")
+parser.add_option("--network", dest="network", help="Base network to use. Supports vgg or resnet50.", default='resnet50')
 
 (options, args) = parser.parse_args()
 
@@ -34,6 +34,11 @@ config_output_filename = options.config_filename
 
 with open(config_output_filename, 'rb') as f_in:
 	C = pickle.load(f_in)
+
+if C.network == 'resnet50':
+	import keras_frcnn.resnet as nn
+elif C.network == 'vgg':
+	import keras_frcnn.vgg as nn
 
 # turn off any data augmentation at test time
 C.use_horizontal_flips = False
@@ -96,12 +101,17 @@ print(class_mapping)
 class_to_color = {class_mapping[v]: np.random.randint(0, 255, 3) for v in class_mapping}
 C.num_rois = int(options.num_rois)
 
+if C.network == 'resnet50':
+	num_features = 1024
+elif C.network == 'vgg':
+	num_features = 512
+
 if K.image_dim_ordering() == 'th':
 	input_shape_img = (3, None, None)
-	input_shape_features = (1024, None, None)
+	input_shape_features = (num_features, None, None)
 else:
 	input_shape_img = (None, None, 3)
-	input_shape_features = (None, None, 1024)
+	input_shape_features = (None, None, num_features)
 
 
 img_input = Input(shape=input_shape_img)
@@ -122,6 +132,7 @@ model_classifier_only = Model([feature_map_input, roi_input], classifier)
 
 model_classifier = Model([feature_map_input, roi_input], classifier)
 
+print('Loading weights from {}'.format(C.model_path))
 model_rpn.load_weights(C.model_path, by_name=True)
 model_classifier.load_weights(C.model_path, by_name=True)
 

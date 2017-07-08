@@ -16,6 +16,25 @@ from keras import backend as K
 from keras_frcnn.RoiPoolingConv import RoiPoolingConv
 from keras_frcnn.FixedBatchNormalization import FixedBatchNormalization
 
+def get_weight_path():
+    if K.image_dim_ordering() == 'th':
+        return 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
+    else:
+        return 'resnet50_weights_tf_dim_ordering_tf_kernels.h5'
+
+def get_img_output_length(width, height):
+    def get_output_length(input_length):
+        # zero_pad
+        input_length += 6
+        # apply 4 strided convolutions
+        filter_sizes = [7, 3, 1, 1]
+        stride = 2
+        for filter_size in filter_sizes:
+            input_length = (input_length - filter_size + stride) // stride
+        return input_length
+
+    return get_output_length(width), get_output_length(height) 
+
 def identity_block(input_tensor, kernel_size, filters, stage, block, trainable=True):
 
     nb_filter1, nb_filter2, nb_filter3 = filters

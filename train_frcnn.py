@@ -13,7 +13,6 @@ from keras.layers import Input
 from keras.models import Model
 from keras_frcnn import config, data_generators
 from keras_frcnn import losses as losses
-from keras_frcnn import resnet as nn
 import keras_frcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
 
@@ -23,9 +22,9 @@ parser = OptionParser()
 
 parser.add_option("-p", "--path", dest="train_path", help="Path to training data.")
 parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of simple or pascal_voc",
-				default="pascal_voc"),
-parser.add_option("-n", "--num_rois", dest="num_rois",
-				help="Number of ROIs per iteration. Higher means more memory use.", default=32)
+				default="pascal_voc")
+parser.add_option("-n", "--num_rois", dest="num_rois", help="Number of RoIs to process at once.", default=32)
+parser.add_option("--network", dest="network", help="Base network to use. Supports vgg or resnet50.", default='resnet50')
 parser.add_option("--hf", dest="horizontal_flips", help="Augment with horizontal flips in training. (Default=false).", action="store_true", default=False)
 parser.add_option("--vf", dest="vertical_flips", help="Augment with vertical flips in training. (Default=false).", action="store_true", default=False)
 parser.add_option("--rot", "--rot_90", dest="rot_90", help="Augment with 90 degree rotations in training. (Default=false).",
@@ -52,15 +51,30 @@ else:
 # pass the settings from the command line, and persist them in the config object
 C = config.Config()
 
-C.num_rois = int(options.num_rois)
 C.use_horizontal_flips = bool(options.horizontal_flips)
 C.use_vertical_flips = bool(options.vertical_flips)
 C.rot_90 = bool(options.rot_90)
 
 C.model_path = options.output_weight_path
+C.num_rois = int(options.num_rois)
 
+if options.network == 'vgg':
+	C.network = 'vgg'
+	from keras_frcnn import vgg as nn
+elif options.network == 'resnet50':
+	from keras_frcnn import resnet as nn
+	C.network = 'resnet50'
+else:
+	print('Not a valid model')
+	raise ValueError
+
+
+# check if weight path was passed via command line
 if options.input_weight_path:
 	C.base_net_weights = options.input_weight_path
+else:
+	# set the path to weights based on backend and model
+	C.base_net_weights = nn.get_weight_path()
 
 all_imgs, classes_count, class_mapping = get_data(options.train_path)
 
@@ -93,8 +107,8 @@ print('Num train samples {}'.format(len(train_imgs)))
 print('Num val samples {}'.format(len(val_imgs)))
 
 
-data_gen_train = data_generators.get_anchor_gt(train_imgs, classes_count, C, K.image_dim_ordering(), mode='train')
-data_gen_val = data_generators.get_anchor_gt(val_imgs, classes_count, C, K.image_dim_ordering(), mode='val')
+data_gen_train = data_generators.get_anchor_gt(train_imgs, classes_count, C, nn.get_img_output_length, K.image_dim_ordering(), mode='train')
+data_gen_val = data_generators.get_anchor_gt(val_imgs, classes_count, C, nn.get_img_output_length,K.image_dim_ordering(), mode='val')
 
 if K.image_dim_ordering() == 'th':
 	input_shape_img = (3, None, None)
@@ -102,7 +116,7 @@ else:
 	input_shape_img = (None, None, 3)
 
 img_input = Input(shape=input_shape_img)
-roi_input = Input(shape=(C.num_rois, 4))
+roi_input = Input(shape=(None, 4))
 
 # define the base network (resnet here, can be VGG, Inception, etc)
 shared_layers = nn.nn_base(img_input, trainable=True)
@@ -124,13 +138,11 @@ try:
 	model_rpn.load_weights(C.base_net_weights, by_name=True)
 	model_classifier.load_weights(C.base_net_weights, by_name=True)
 except:
-	print('Could not load pretrained model weights. Weights can be found at {} and {}'.format(
-		'https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_th_dim_ordering_th_kernels_notop.h5',
-		'https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
-	))
+	print('Could not load pretrained model weights. Weights can be found in the keras application folder \
+		https://github.com/fchollet/keras/tree/master/keras/applications')
 
-optimizer = Adam(lr=1e-4)
-optimizer_classifier = Adam(lr=1e-4)
+optimizer = Adam(lr=1e-5)
+optimizer_classifier = Adam(lr=1e-5)
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
 model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
@@ -149,6 +161,7 @@ best_loss = np.Inf
 class_mapping_inv = {v: k for k, v in class_mapping.items()}
 print('Starting training')
 
+vis = True
 
 for epoch_num in range(num_epochs):
 
@@ -157,6 +170,7 @@ for epoch_num in range(num_epochs):
 
 	while True:
 		try:
+
 			if len(rpn_accuracy_rpn_monitor) == epoch_length and C.verbose:
 				mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
 				rpn_accuracy_rpn_monitor = []
@@ -171,9 +185,8 @@ for epoch_num in range(num_epochs):
 			P_rpn = model_rpn.predict_on_batch(X)
 
 			R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
-
 			# note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
-			X2, Y1, Y2 = roi_helpers.calc_iou(R, img_data, C, class_mapping)
+			X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, C, class_mapping)
 
 			if X2 is None:
 				rpn_accuracy_rpn_monitor.append(0)
@@ -192,7 +205,7 @@ for epoch_num in range(num_epochs):
 				pos_samples = pos_samples[0]
 			else:
 				pos_samples = []
-
+			
 			rpn_accuracy_rpn_monitor.append(len(pos_samples))
 			rpn_accuracy_for_epoch.append((len(pos_samples)))
 
