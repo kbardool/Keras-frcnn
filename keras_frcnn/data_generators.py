@@ -7,11 +7,6 @@ from . import data_augment
 import threading
 import itertools
 
-# random.seed(0)
-
-
-
-
 
 def union(au, bu, area_intersection):
 	area_a = (au[2] - au[0]) * (au[3] - au[1])
@@ -53,8 +48,6 @@ def get_new_img_size(width, height, img_min_side=600):
 		resized_height = img_min_side
 
 	return resized_width, resized_height
-
-
 
 
 class SampleSelector:
