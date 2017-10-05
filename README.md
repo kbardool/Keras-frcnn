@@ -51,7 +51,6 @@ ISSUES:
 `ValueError: There is a negative shape in the graph!`    
     than update keras to the newest version
 
-- Make sure to use `python2`, not `python3`. If you get this error:
-`TypeError: unorderable types: dict() < dict()` you are using python3
+- This repo was developed using `python2`. `python3` should work thanks to the contribution of a number of users.
 
 - If you run out of memory, try reducing the number of ROIs that are processed simultaneously. Try passing a lower `-n` to `train_frcnn.py`. Alternatively, try reducing the image size from the default value of 600 (this setting is found in `config.py`.

@@ -87,7 +87,7 @@ def calc_iou(R, img_data, C, class_mapping):
 			y_class_regr_label.append(copy.deepcopy(labels))
 
 	if len(x_roi) == 0:
-		return None, None, None
+		return None, None, None, None
 
 	X = np.array(x_roi)
 	Y1 = np.array(y_class_num)
