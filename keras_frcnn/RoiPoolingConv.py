@@ -114,3 +114,10 @@ class RoiPoolingConv(Layer):
             final_output = K.permute_dimensions(final_output, (0, 1, 2, 3, 4))
 
         return final_output
+    
+    
+    def get_config(self):
+        config = {'pool_size': self.pool_size,
+                  'num_rois': self.num_rois}
+        base_config = super(RoiPoolingConv, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
