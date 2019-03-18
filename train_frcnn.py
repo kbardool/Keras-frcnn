@@ -238,11 +238,11 @@ for epoch_num in range(num_epochs):
 			losses[iter_num, 3] = loss_class[2]
 			losses[iter_num, 4] = loss_class[3]
 
-			iter_num += 1
-
-			progbar.update(iter_num, [('rpn_cls', losses[iter_num, 0]), ('rpn_regr', losses[iter_num, 1]),
+			progbar.update(iter_num+1, [('rpn_cls', losses[iter_num, 0]), ('rpn_regr', losses[iter_num, 1]),
 									  ('detector_cls', losses[iter_num, 2]), ('detector_regr', losses[iter_num, 3])])
 
+			iter_num += 1
+			
 			if iter_num == epoch_length:
 				loss_rpn_cls = np.mean(losses[:, 0])
 				loss_rpn_regr = np.mean(losses[:, 1])
