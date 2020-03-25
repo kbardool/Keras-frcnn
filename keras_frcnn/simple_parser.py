@@ -39,10 +39,7 @@ def get_data(input_path):
 				all_imgs[filename]['width'] = cols
 				all_imgs[filename]['height'] = rows
 				all_imgs[filename]['bboxes'] = []
-				if np.random.randint(0,6) > 0:
-					all_imgs[filename]['imageset'] = 'trainval'
-				else:
-					all_imgs[filename]['imageset'] = 'test'
+				all_imgs[filename]['imageset'] = 'test'
 
 			all_imgs[filename]['bboxes'].append({'class': class_name, 'x1': int(x1), 'x2': int(x2), 'y1': int(y1), 'y2': int(y2)})
 

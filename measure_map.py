@@ -5,6 +5,7 @@ import sys
 import pickle
 from optparse import OptionParser
 import time
+import re
 from keras_frcnn import config
 import keras_frcnn.resnet as nn
 from keras import backend as K
@@ -18,12 +19,15 @@ from sklearn.metrics import average_precision_score
 def get_map(pred, gt, f):
 	T = {}
 	P = {}
+	iou_result = 0
 	fx, fy = f
 
 	for bbox in gt:
 		bbox['bbox_matched'] = False
 
 	pred_probs = np.array([s['prob'] for s in pred])
+	print(pred)
+	print(pred_probs)
 	box_idx_sorted_by_prob = np.argsort(pred_probs)[::-1]
 
 	for box_idx in box_idx_sorted_by_prob:
@@ -51,7 +55,10 @@ def get_map(pred, gt, f):
 				continue
 			if gt_seen:
 				continue
+			iou = 0
 			iou = data_generators.iou((pred_x1, pred_y1, pred_x2, pred_y2), (gt_x1, gt_y1, gt_x2, gt_y2))
+			iou_result += iou
+			print('IoU = ' + str(iou))
 			if iou >= 0.5:
 				found_match = True
 				gt_box['bbox_matched'] = True
@@ -60,9 +67,8 @@ def get_map(pred, gt, f):
 				continue
 
 		T[pred_class].append(int(found_match))
-
 	for gt_box in gt:
-		if not gt_box['bbox_matched'] and not gt_box['difficult']:
+		if not gt_box['bbox_matched']: # and not gt_box['difficult']:
 			if gt_box['class'] not in P:
 				P[gt_box['class']] = []
 				T[gt_box['class']] = []
@@ -72,7 +78,7 @@ def get_map(pred, gt, f):
 
 	#import pdb
 	#pdb.set_trace()
-	return T, P
+	return T, P, iou_result
 
 sys.setrecursionlimit(40000)
 
@@ -86,6 +92,7 @@ parser.add_option("--config_filename", dest="config_filename", help=
 				default="config.pickle")
 parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of simple or pascal_voc",
 				default="pascal_voc"),
+parser.add_option("-i", "--output_model_number", dest="model_iter", help="Models of Epoch step to use. Type this with leading spaces for the hdf5 files!"),
 
 (options, args) = parser.parse_args()
 
@@ -102,8 +109,12 @@ else:
 
 config_output_filename = options.config_filename
 
-with open(config_output_filename, 'r') as f_in:
+with open(config_output_filename, 'rb') as f_in:
 	C = pickle.load(f_in)
+
+if options.model_iter is not None:
+	x = re.match("^(.+)(\.hdf5)$", C.model_path)
+	C.model_path = x.group(1) + "_" + options.model_iter + x.group(2)
 
 # turn off any data augmentation at test time
 C.use_horizontal_flips = False
@@ -144,7 +155,7 @@ class_mapping = C.class_mapping
 if 'bg' not in class_mapping:
 	class_mapping['bg'] = len(class_mapping)
 
-class_mapping = {v: k for k, v in class_mapping.iteritems()}
+class_mapping = {v: k for k, v in class_mapping.items()}
 print(class_mapping)
 class_to_color = {class_mapping[v]: np.random.randint(0, 255, 3) for v in class_mapping}
 C.num_rois = int(options.num_rois)
@@ -181,14 +192,14 @@ model_classifier.load_weights(C.model_path, by_name=True)
 model_rpn.compile(optimizer='sgd', loss='mse')
 model_classifier.compile(optimizer='sgd', loss='mse')
 
-all_imgs, _, _ = get_data(options.test_path)
-test_imgs = [s for s in all_imgs if s['imageset'] == 'test']
-
-
+test_imgs, _, _ = get_data(options.test_path)
+#test_imgs = [s for s in all_imgs if s['imageset'] == 'test']
+begin = time.time()
 T = {}
 P = {}
+iou_result = 0
 for idx, img_data in enumerate(test_imgs):
-	print('{}/{}'.format(idx,len(test_imgs)))
+	print('{}/{}'.format(idx + 1,len(test_imgs)))
 	st = time.time()
 	filepath = img_data['filepath']
 
@@ -202,7 +213,7 @@ for idx, img_data in enumerate(test_imgs):
 	# get the feature maps and output from the RPN
 	[Y1, Y2, F] = model_rpn.predict(X)
 
-	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.7)
+	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.5)
 
 	# convert from (x1,y1,x2,y2) to (x,y,w,h)
 	R[:, 2] -= R[:, 0]
@@ -267,7 +278,8 @@ for idx, img_data in enumerate(test_imgs):
 
 
 	print('Elapsed time = {}'.format(time.time() - st))
-	t, p = get_map(all_dets, img_data['bboxes'], (fx, fy))
+	t, p, iou = get_map(all_dets, img_data['bboxes'], (fx, fy))
+	iou_result += iou
 	for key in t.keys():
 		if key not in T:
 			T[key] = []
@@ -280,5 +292,8 @@ for idx, img_data in enumerate(test_imgs):
 		print('{} AP: {}'.format(key, ap))
 		all_aps.append(ap)
 	print('mAP = {}'.format(np.mean(np.array(all_aps))))
+	
 	#print(T)
 	#print(P)
+print('Completely Elapsed time = {}'.format(time.time() - begin))
+print('IoU@0.50 = ' + str(iou_result/len(test_imgs)))

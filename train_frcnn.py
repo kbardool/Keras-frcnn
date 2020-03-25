@@ -6,6 +6,7 @@ import time
 import numpy as np
 from optparse import OptionParser
 import pickle
+import re
 
 from keras import backend as K
 from keras.optimizers import Adam, SGD, RMSprop
@@ -56,6 +57,10 @@ C.use_vertical_flips = bool(options.vertical_flips)
 C.rot_90 = bool(options.rot_90)
 
 C.model_path = options.output_weight_path
+model_path_regex = re.match("^(.+)(\.hdf5)$", C.model_path)
+if model_path_regex.group(2) != '.hdf5':
+	print('Output weights must have .hdf5 filetype')
+	exit(1)
 C.num_rois = int(options.num_rois)
 
 if options.network == 'vgg':
@@ -76,7 +81,8 @@ else:
 	# set the path to weights based on backend and model
 	C.base_net_weights = nn.get_weight_path()
 
-all_imgs, classes_count, class_mapping = get_data(options.train_path)
+train_imgs, classes_count, class_mapping = get_data(options.train_path, 'trainval')
+val_imgs, _, _ = get_data(options.train_path, 'test')
 
 if 'bg' not in classes_count:
 	classes_count['bg'] = 0
@@ -96,12 +102,12 @@ with open(config_output_filename, 'wb') as config_f:
 	pickle.dump(C,config_f)
 	print('Config has been written to {}, and can be loaded when testing to ensure correct results'.format(config_output_filename))
 
-random.shuffle(all_imgs)
+random.shuffle(train_imgs)
 
-num_imgs = len(all_imgs)
+num_imgs = len(train_imgs)
 
-train_imgs = [s for s in all_imgs if s['imageset'] == 'trainval']
-val_imgs = [s for s in all_imgs if s['imageset'] == 'test']
+#train_imgs = [s for s in all_imgs if s['imageset'] == 'trainval']
+#val_imgs = [s for s in all_imgs if s['imageset'] == 'test']
 
 print('Num train samples {}'.format(len(train_imgs)))
 print('Num val samples {}'.format(len(val_imgs)))
@@ -270,7 +276,7 @@ for epoch_num in range(num_epochs):
 					if C.verbose:
 						print('Total loss decreased from {} to {}, saving weights'.format(best_loss,curr_loss))
 					best_loss = curr_loss
-					model_all.save_weights(C.model_path)
+				model_all.save_weights(model_path_regex.group(1) + "_" + '{:04d}'.format(epoch_num) + model_path_regex.group(2))
 
 				break
 
