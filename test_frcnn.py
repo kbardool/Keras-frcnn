@@ -6,13 +6,21 @@ import sys
 import pickle
 from optparse import OptionParser
 import time
+import tensorflow as tf
 from keras_frcnn import config
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
+from keras.backend.tensorflow_backend import set_session
 from keras_frcnn import roi_helpers
 
 sys.setrecursionlimit(40000)
+
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+config.log_device_placement = True
+sess = tf.Session(config=config)
+set_session(sess)
 
 parser = OptionParser()
 

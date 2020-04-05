@@ -7,6 +7,6 @@ dependencies:
   - numpy
   - opencv
   - keras-gpu=2.2.4
-  - cudatoolkit=9.0
-  - tensorflow-gpu=1.13.1
+  - cudatoolkit
+  - tensorflow-gpu=1.14.0
   - scikit-learn
