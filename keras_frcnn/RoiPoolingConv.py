@@ -15,9 +15,9 @@ class RoiPoolingConv(Layer):
     # Input shape
         list of two 4D tensors [X_img,X_roi] with shape:
         X_img:
-        `(1, channels, rows, cols)` if dim_ordering='th'
+        `(1, channels, rows, cols)` if dim_ordering='channels_first'
         or 4D tensor with shape:
-        `(1, rows, cols, channels)` if dim_ordering='tf'.
+        `(1, rows, cols, channels)` if dim_ordering='channels_last'.
         X_roi:
         `(1,num_rois,4)` list of rois, with ordering (x,y,w,h)
     # Output shape
@@ -26,8 +26,8 @@ class RoiPoolingConv(Layer):
     '''
     def __init__(self, pool_size, num_rois, **kwargs):
 
-        self.dim_ordering = K.image_dim_ordering()
-        assert self.dim_ordering in {'tf', 'th'}, 'dim_ordering must be in {tf, th}'
+        self.dim_ordering = K.image_data_format()
+        assert self.dim_ordering in {'channels_last', 'channels_first'}, 'dim_ordering must be in {tf, th}'
 
         self.pool_size = pool_size
         self.num_rois = num_rois
@@ -35,13 +35,13 @@ class RoiPoolingConv(Layer):
         super(RoiPoolingConv, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        if self.dim_ordering == 'th':
+        if self.dim_ordering == 'channels_first':
             self.nb_channels = input_shape[0][1]
-        elif self.dim_ordering == 'tf':
+        elif self.dim_ordering == 'channels_last':
             self.nb_channels = input_shape[0][3]
 
     def compute_output_shape(self, input_shape):
-        if self.dim_ordering == 'th':
+        if self.dim_ordering == 'channels_first':
             return None, self.num_rois, self.nb_channels, self.pool_size, self.pool_size
         else:
             return None, self.num_rois, self.pool_size, self.pool_size, self.nb_channels
@@ -72,7 +72,7 @@ class RoiPoolingConv(Layer):
             #NOTE: the RoiPooling implementation differs between theano and tensorflow due to the lack of a resize op
             # in theano. The theano implementation is much less efficient and leads to long compile times
 
-            if self.dim_ordering == 'th':
+            if self.dim_ordering == 'channels_first':
                 for jy in range(num_pool_regions):
                     for ix in range(num_pool_regions):
                         x1 = x + ix * row_length
@@ -96,7 +96,7 @@ class RoiPoolingConv(Layer):
                         pooled_val = K.max(xm, axis=(2, 3))
                         outputs.append(pooled_val)
 
-            elif self.dim_ordering == 'tf':
+            elif self.dim_ordering == 'channels_last':
                 x = K.cast(x, 'int32')
                 y = K.cast(y, 'int32')
                 w = K.cast(w, 'int32')
