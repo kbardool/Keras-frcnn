@@ -1,7 +1,7 @@
 from keras import backend as K
 from keras.objectives import categorical_crossentropy
 
-if K.image_data_format() == 'channels_first':
+if K.image_data_format() == 'channels_last':
 	import tensorflow as tf
 
 lambda_rpn_regr = 1.0
@@ -34,7 +34,7 @@ def rpn_loss_regr(num_anchors):
 
 def rpn_loss_cls(num_anchors):
 	def rpn_loss_cls_fixed_num(y_true, y_pred):
-		if K.image_data_format() == 'channels_first':
+		if K.image_data_format() == 'channels_last':
 			return lambda_rpn_class * K.sum(y_true[:, :, :, :num_anchors] * K.binary_crossentropy(y_pred[:, :, :, :], y_true[:, :, :, num_anchors:])) / K.sum(epsilon + y_true[:, :, :, :num_anchors])
 		else:
 			return lambda_rpn_class * K.sum(y_true[:, :num_anchors, :, :] * K.binary_crossentropy(y_pred[:, :, :, :], y_true[:, num_anchors:, :, :])) / K.sum(epsilon + y_true[:, :num_anchors, :, :])
