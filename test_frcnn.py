@@ -106,7 +106,7 @@ if C.network == 'resnet50':
 elif C.network == 'vgg':
 	num_features = 512
 
-if K.image_dim_ordering() == 'th':
+if K.image_data_format() == 'channels_first':
 	input_shape_img = (3, None, None)
 	input_shape_features = (num_features, None, None)
 else:
@@ -158,14 +158,14 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
 	X, ratio = format_img(img, C)
 
-	if K.image_dim_ordering() == 'tf':
+	if K.image_data_format() == 'channels_last':
 		X = np.transpose(X, (0, 2, 3, 1))
 
 	# get the feature maps and output from the RPN
 	[Y1, Y2, F] = model_rpn.predict(X)
 	
 
-	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.7)
+	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_data_format(), overlap_thresh=0.7)
 
 	# convert from (x1,y1,x2,y2) to (x,y,w,h)
 	R[:, 2] -= R[:, 0]
