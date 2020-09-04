@@ -102,13 +102,13 @@ class RoiPoolingConv(Layer):
                 w = K.cast(w, 'int32')
                 h = K.cast(h, 'int32')
 
-                rs = tf.image.resize_images(img[:, y:y+h, x:x+w, :], (self.pool_size, self.pool_size))
+                rs = tf.image.resize(img[:, y:y+h, x:x+w, :], (self.pool_size, self.pool_size))
                 outputs.append(rs)
 
         final_output = K.concatenate(outputs, axis=0)
         final_output = K.reshape(final_output, (1, self.num_rois, self.pool_size, self.pool_size, self.nb_channels))
 
-        if self.dim_ordering == 'th':
+        if self.dim_ordering == 'channels_first':
             final_output = K.permute_dimensions(final_output, (0, 1, 4, 2, 3))
         else:
             final_output = K.permute_dimensions(final_output, (0, 1, 2, 3, 4))
