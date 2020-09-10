@@ -132,7 +132,7 @@ model_classifier_only = Model([feature_map_input, roi_input], classifier)
 
 model_classifier = Model([feature_map_input, roi_input], classifier)
 
-print('Loading weights from {}'.format(C.model_path))
+print(f'Loading weights from {C.model_path}')
 model_rpn.load_weights(C.model_path, by_name=True)
 model_classifier.load_weights(C.model_path, by_name=True)
 
@@ -230,7 +230,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
 			cv2.rectangle(img,(real_x1, real_y1), (real_x2, real_y2), (int(class_to_color[key][0]), int(class_to_color[key][1]), int(class_to_color[key][2])),2)
 
-			textLabel = '{}: {}'.format(key,int(100*new_probs[jk]))
+			textLabel = f'{key}: {int(100*new_probs[jk])}'
 			all_dets.append((key,100*new_probs[jk]))
 
 			(retval,baseLine) = cv2.getTextSize(textLabel,cv2.FONT_HERSHEY_COMPLEX,1,1)
@@ -240,8 +240,8 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 			cv2.rectangle(img, (textOrg[0] - 5,textOrg[1]+baseLine - 5), (textOrg[0]+retval[0] + 5, textOrg[1]-retval[1] - 5), (255, 255, 255), -1)
 			cv2.putText(img, textLabel, textOrg, cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 0), 1)
 
-	print('Elapsed time = {}'.format(time.time() - st))
+	print(f'Elapsed time = {time.time() - st)}'
 	print(all_dets)
 	cv2.imshow('img', img)
 	cv2.waitKey(0)
-	# cv2.imwrite('./results_imgs/{}.png'.format(idx),img)
+	# cv2.imwrite(f'./results_imgs/{idx}.png',img)

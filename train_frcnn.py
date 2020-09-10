@@ -88,13 +88,13 @@ inv_map = {v: k for k, v in class_mapping.items()}
 
 print('Training images per class:')
 pprint.pprint(classes_count)
-print('Num classes (including bg) = {}'.format(len(classes_count)))
+print(f'Num classes (including bg) = {len(classes_count)}')
 
 config_output_filename = options.config_filename
 
 with open(config_output_filename, 'wb') as config_f:
 	pickle.dump(C,config_f)
-	print('Config has been written to {}, and can be loaded when testing to ensure correct results'.format(config_output_filename))
+	print(f'Config has been written to {config_output_filename}, and can be loaded when testing to ensure correct results')
 
 random.shuffle(all_imgs)
 
@@ -103,8 +103,8 @@ num_imgs = len(all_imgs)
 train_imgs = [s for s in all_imgs if s['imageset'] == 'trainval']
 val_imgs = [s for s in all_imgs if s['imageset'] == 'test']
 
-print('Num train samples {}'.format(len(train_imgs)))
-print('Num val samples {}'.format(len(val_imgs)))
+print(f'Num train samples {len(train_imgs}')
+print(f'Num val samples {len(val_imgs)}')
 
 
 data_gen_train = data_generators.get_anchor_gt(train_imgs, classes_count, C, nn.get_img_output_length, K.image_dim_ordering(), mode='train')
@@ -134,7 +134,7 @@ model_classifier = Model([img_input, roi_input], classifier)
 model_all = Model([img_input, roi_input], rpn[:2] + classifier)
 
 try:
-	print('loading weights from {}'.format(C.base_net_weights))
+	print('loading weights from {C.base_net_weights}')
 	model_rpn.load_weights(C.base_net_weights, by_name=True)
 	model_classifier.load_weights(C.base_net_weights, by_name=True)
 except:
@@ -144,7 +144,7 @@ except:
 optimizer = Adam(lr=1e-5)
 optimizer_classifier = Adam(lr=1e-5)
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
-model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
+model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={f'dense_class_{len(classes_count)}': 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
 
 epoch_length = 1000
@@ -166,7 +166,7 @@ vis = True
 for epoch_num in range(num_epochs):
 
 	progbar = generic_utils.Progbar(epoch_length)
-	print('Epoch {}/{}'.format(epoch_num + 1, num_epochs))
+	print(f'Epoch {epoch_num + 1}/{num_epochs}')
 
 	while True:
 		try:
@@ -174,7 +174,7 @@ for epoch_num in range(num_epochs):
 			if len(rpn_accuracy_rpn_monitor) == epoch_length and C.verbose:
 				mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
 				rpn_accuracy_rpn_monitor = []
-				print('Average number of overlapping bounding boxes from RPN = {} for {} previous iterations'.format(mean_overlapping_bboxes, epoch_length))
+				print(f'Average number of overlapping bounding boxes from RPN = {mean_overlapping_bboxes} for {epoch_length} previous iterations')
 				if mean_overlapping_bboxes == 0:
 					print('RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
 
@@ -254,13 +254,13 @@ for epoch_num in range(num_epochs):
 				rpn_accuracy_for_epoch = []
 
 				if C.verbose:
-					print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes))
-					print('Classifier accuracy for bounding boxes from RPN: {}'.format(class_acc))
-					print('Loss RPN classifier: {}'.format(loss_rpn_cls))
-					print('Loss RPN regression: {}'.format(loss_rpn_regr))
-					print('Loss Detector classifier: {}'.format(loss_class_cls))
-					print('Loss Detector regression: {}'.format(loss_class_regr))
-					print('Elapsed time: {}'.format(time.time() - start_time))
+					print(f'Mean number of bounding boxes from RPN overlapping ground truth boxes: {mean_overlapping_boxes}')
+					print(f'Classifier accuracy for bounding boxes from RPN: {class_acc}')
+					print(f'Loss RPN classifier: {loss_rpn_cls}')
+					print(f'Loss RPN regression: {loss_rpn_regr}')
+					print(f'Loss Detector classifier: {loss_class_cls}')
+					print(f'Loss Detector regression: {loss_class_regr}')
+					print(f'Elapsed time: {time.time() - start_time}')
 
 				curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr
 				iter_num = 0
@@ -268,14 +268,14 @@ for epoch_num in range(num_epochs):
 
 				if curr_loss < best_loss:
 					if C.verbose:
-						print('Total loss decreased from {} to {}, saving weights'.format(best_loss,curr_loss))
+						print(f'Total loss decreased from {best_loss} to {curr_loss}, saving weights')
 					best_loss = curr_loss
 					model_all.save_weights(C.model_path)
 
 				break
 
 		except Exception as e:
-			print('Exception: {}'.format(e))
+			print(f'Exception: {e}')
 			continue
 
 print('Training complete, exiting.')
