@@ -6,13 +6,21 @@ import sys
 import pickle
 from optparse import OptionParser
 import time
+import tensorflow as tf
 from keras_frcnn import config
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
+from keras.backend.tensorflow_backend import set_session
 from keras_frcnn import roi_helpers
 
 sys.setrecursionlimit(40000)
+
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+config.log_device_placement = True
+sess = tf.Session(config=config)
+set_session(sess)
 
 parser = OptionParser()
 
@@ -242,6 +250,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
 	print(f'Elapsed time = {time.time() - st)}'
 	print(all_dets)
-	cv2.imshow('img', img)
-	cv2.waitKey(0)
-	# cv2.imwrite(f'./results_imgs/{idx}.png',img)
+
+	
+	cv2.imwrite('./results_imgs-fp-mappen-test/{}.png'.format(os.path.splitext(str(img_name))[0]),img)
+
