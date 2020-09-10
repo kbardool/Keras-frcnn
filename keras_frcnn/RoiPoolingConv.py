@@ -26,7 +26,7 @@ class RoiPoolingConv(Layer):
     '''
     def __init__(self, pool_size, num_rois, **kwargs):
 
-        self.dim_ordering = K.image_dim_ordering()
+        self.dim_ordering = K.common.image_dim_ordering()
         assert self.dim_ordering in {'tf', 'th'}, 'dim_ordering must be in {tf, th}'
 
         self.pool_size = pool_size
@@ -102,7 +102,7 @@ class RoiPoolingConv(Layer):
                 w = K.cast(w, 'int32')
                 h = K.cast(h, 'int32')
 
-                rs = tf.image.resize_images(img[:, y:y+h, x:x+w, :], (self.pool_size, self.pool_size))
+                rs = tf.image.resize(img[:, y:y+h, x:x+w, :], (self.pool_size, self.pool_size))
                 outputs.append(rs)
 
         final_output = K.concatenate(outputs, axis=0)
