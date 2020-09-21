@@ -17,7 +17,7 @@ from keras_frcnn.RoiPoolingConv import RoiPoolingConv
 from keras_frcnn.FixedBatchNormalization import FixedBatchNormalization
 
 def get_weight_path():
-    if K.common.image_dim_ordering() == 'th':
+    if K.image_data_format() == 'th':
         return 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
     else:
         return 'resnet50_weights_tf_dim_ordering_tf_kernels.h5'
@@ -39,7 +39,7 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, trainable=T
 
     nb_filter1, nb_filter2, nb_filter3 = filters
     
-    if K.common.image_dim_ordering() == 'tf':
+    if K.image_data_format() == 'tf':
         bn_axis = 3
     else:
         bn_axis = 1
@@ -68,7 +68,7 @@ def identity_block_td(input_tensor, kernel_size, filters, stage, block, trainabl
     # identity block time distributed
 
     nb_filter1, nb_filter2, nb_filter3 = filters
-    if K.common.image_dim_ordering() == 'tf':
+    if K.image_data_format() == 'tf':
         bn_axis = 3
     else:
         bn_axis = 1
@@ -95,7 +95,7 @@ def identity_block_td(input_tensor, kernel_size, filters, stage, block, trainabl
 def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2), trainable=True):
 
     nb_filter1, nb_filter2, nb_filter3 = filters
-    if K.common.image_dim_ordering() == 'tf':
+    if K.image_data_format() == 'tf':
         bn_axis = 3
     else:
         bn_axis = 1
@@ -127,7 +127,7 @@ def conv_block_td(input_tensor, kernel_size, filters, stage, block, input_shape,
     # conv block time distributed
 
     nb_filter1, nb_filter2, nb_filter3 = filters
-    if K.common.image_dim_ordering() == 'tf':
+    if K.image_data_format() == 'tf':
         bn_axis = 3
     else:
         bn_axis = 1
@@ -156,7 +156,7 @@ def conv_block_td(input_tensor, kernel_size, filters, stage, block, input_shape,
 def nn_base(input_tensor=None, trainable=False):
 
     # Determine proper input shape
-    if K.common.image_dim_ordering() == 'th':
+    if K.image_data_format() == 'th':
         input_shape = (3, None, None)
     else:
         input_shape = (None, None, 3)
@@ -169,7 +169,7 @@ def nn_base(input_tensor=None, trainable=False):
         else:
             img_input = input_tensor
 
-    if K.common.image_dim_ordering() == 'tf':
+    if K.image_data_format() == 'tf':
         bn_axis = 3
     else:
         bn_axis = 1
