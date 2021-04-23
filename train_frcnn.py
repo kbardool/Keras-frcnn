@@ -256,7 +256,7 @@ for epoch_num in range(num_epochs):
 				loss_class_regr = np.mean(losses[:, 3])
 				class_acc = np.mean(losses[:, 4])
 
-				mean_overlapping_boxes = float(sum(rpn_accuracy_for_epoch)) / len(rpn_accuracy_for_epoch)
+				mean_overlapping_bboxes = float(sum(rpn_accuracy_for_epoch)) / len(rpn_accuracy_for_epoch)
 				rpn_accuracy_for_epoch = []
 
 				if C.verbose:
