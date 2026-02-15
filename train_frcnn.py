@@ -260,7 +260,7 @@ for epoch_num in range(num_epochs):
 				rpn_accuracy_for_epoch = []
 
 				if C.verbose:
-					print(f'Mean number of bounding boxes from RPN overlapping ground truth boxes: {mean_overlapping_boxes}')
+					print(f'Mean number of bounding boxes from RPN overlapping ground truth boxes: {mean_overlapping_bboxes}')
 					print(f'Classifier accuracy for bounding boxes from RPN: {class_acc}')
 					print(f'Loss RPN classifier: {loss_rpn_cls}')
 					print(f'Loss RPN regression: {loss_rpn_regr}')
